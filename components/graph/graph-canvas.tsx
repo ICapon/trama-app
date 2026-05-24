@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { GraphCanvas } from "reagraph";
+import { GraphCanvas, darkTheme, lightTheme } from "reagraph";
 import type { GraphCanvasRef, GraphEdge, GraphNode, InternalGraphNode } from "reagraph";
+import { useAppTheme } from "@/hooks/use-theme";
 
 type PinnedPositions = Record<string, { fx: number; fy: number; fz: number }>;
 
@@ -23,11 +24,16 @@ const INITIAL_EDGES: GraphEdge[] = [
   { id: "e1-3", source: "1", target: "3" },
 ];
 
-export function TramaGraph() {
+interface TramaGraphProps {
+  readonly?: boolean
+}
+
+export function TramaGraph({ readonly = false }: TramaGraphProps) {
   const graphRef = useRef<GraphCanvasRef | null>(null);
   const [pinnedPositions, setPinnedPositions] = useState<PinnedPositions>({});
+  const { resolvedTheme } = useAppTheme();
+  const theme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
-  // Merge pinned fx/fy/fz into nodes so they stay put after dragging
   const nodes = INITIAL_NODES.map((node) => ({
     ...node,
     ...pinnedPositions[node.id],
@@ -46,8 +52,9 @@ export function TramaGraph() {
       ref={graphRef}
       nodes={nodes}
       edges={INITIAL_EDGES}
-      draggable
-      onNodeDragged={handleNodeDragged}
+      theme={theme}
+      draggable={!readonly}
+      onNodeDragged={readonly ? undefined : handleNodeDragged}
     />
   );
 }

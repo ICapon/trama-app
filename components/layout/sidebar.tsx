@@ -85,12 +85,12 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 p-2 flex-1">
         <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-          Principal
+          Main
         </p>
         <NavItem
           href="/"
           icon={<FolderIcon />}
-          label="Investigaciones"
+          label="Investigations"
           active={isHome}
         />
       </nav>
