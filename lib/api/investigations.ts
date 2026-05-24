@@ -6,7 +6,12 @@ import type {
   AddTargetBody,
 } from "@/types/investigation"
 
-const BASE = "/api/investigations"
+// When NEXT_PUBLIC_API_URL is set (external backend), prefix defaults to ""
+// When using Next.js mock routes locally, prefix is "/api"
+const PREFIX = process.env.NEXT_PUBLIC_API_URL
+  ? (process.env.NEXT_PUBLIC_API_PREFIX ?? "")
+  : "/api"
+const BASE = `${PREFIX}/investigations`
 
 export const investigationsApi = {
   list: (params?: { ownerId?: string }) =>

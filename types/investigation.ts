@@ -16,7 +16,7 @@ export interface Investigation {
   hypothesis?: string
   tags: string[]
   ownerId: string | null
-  targets: TargetNode[]
+  targets?: TargetNode[]
   createdAt: string
   updatedAt: string
 }

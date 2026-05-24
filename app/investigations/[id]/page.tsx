@@ -293,13 +293,13 @@ export default function InvestigationPage({
               {/* Targets */}
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                  Targets{investigation.targets.length > 0 && <span className="font-normal normal-case ml-1">({investigation.targets.length})</span>}
+                  Targets{investigation?.targets && investigation?.targets?.length > 0 && <span className="font-normal normal-case ml-1">({investigation.targets.length})</span>}
                 </p>
-                {investigation.targets.length === 0 ? (
+                {investigation.targets?.length === 0 ? (
                   <p className="text-xs text-zinc-400">No targets defined</p>
                 ) : (
                   <div className="flex flex-col gap-1.5">
-                    {investigation.targets.map((target) => (
+                    {investigation.targets?.map((target) => (
                       <div key={target.nodeId} className="flex items-center gap-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2">
                         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${NODE_TYPE_STYLES[target.nodeType] ?? "bg-zinc-100 text-zinc-500"}`}>
                           {target.nodeType}

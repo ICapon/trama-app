@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { investigationsApi } from "@/lib/api/investigations"
+import { NewInvestigationDialog } from "@/components/investigations/new-investigation-dialog"
+import { useToast, Toaster } from "@/components/ui/toast"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
 
 const STATUS_LABELS: Record<InvestigationStatus, string> = {
@@ -51,6 +53,7 @@ function formatRelativeDate(dateString: string): string {
 }
 
 function InvestigationCard({ inv }: { inv: Investigation }) {
+  console.log('Rendering card for investigation', inv)
   return (
     <Link href={`/investigations/${inv.id}`} className="group block">
       <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 h-full transition-all hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm">
@@ -92,7 +95,7 @@ function InvestigationCard({ inv }: { inv: Investigation }) {
               <span className="text-xs text-zinc-400">+{inv.tags.length - 3}</span>
             )}
           </div>
-          {inv.targets.length > 0 && (
+          {inv.targets && inv.targets?.length > 0 && (
             <span className="text-xs text-zinc-400 shrink-0">
               {inv.targets.length} {inv.targets.length === 1 ? "target" : "targets"}
             </span>
@@ -127,6 +130,8 @@ export default function InvestigationsPage() {
   const [investigations, setInvestigations] = useState<Investigation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showDialog, setShowDialog] = useState(false)
+  const { toasts, dismiss, toast } = useToast()
 
   useEffect(() => {
     investigationsApi
@@ -136,8 +141,22 @@ export default function InvestigationsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  function handleCreated(investigation: Investigation) {
+    setInvestigations((prev) => [investigation, ...prev])
+    setShowDialog(false)
+    toast.success("Investigation created successfully")
+  }
+
   return (
     <div className="flex flex-col flex-1">
+      <Toaster toasts={toasts} onDismiss={dismiss} />
+
+      <NewInvestigationDialog
+        open={showDialog}
+        onClose={() => setShowDialog(false)}
+        onCreated={handleCreated}
+      />
+
       {/* Header */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm px-6 py-4">
         <div>
@@ -146,7 +165,10 @@ export default function InvestigationsPage() {
             <p className="text-xs text-zinc-400 mt-0.5">{investigations.length} total</p>
           )}
         </div>
-        <button className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors">
+        <button
+          onClick={() => setShowDialog(true)}
+          className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+        >
           + New
         </button>
       </header>
