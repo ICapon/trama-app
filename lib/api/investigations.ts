@@ -4,6 +4,7 @@ import type {
   CreateInvestigationBody,
   UpdateInvestigationBody,
   AddTargetBody,
+  InvestigationViewState,
 } from "@/types/investigation"
 
 // When NEXT_PUBLIC_API_URL is set (external backend), prefix defaults to ""
@@ -34,4 +35,7 @@ export const investigationsApi = {
 
   removeTarget: (id: string, nodeId: string) =>
     api.delete<void>(`${BASE}/${id}/targets/${nodeId}`),
+
+  patchViewState: (id: string, viewState: InvestigationViewState) =>
+    api.patch<void>(`${BASE}/${id}/view-state`, viewState),
 }

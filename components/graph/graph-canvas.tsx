@@ -4,57 +4,98 @@ import { useCallback, useRef, useState } from "react";
 import { GraphCanvas, darkTheme, lightTheme } from "reagraph";
 import type { GraphCanvasRef, GraphEdge, GraphNode, InternalGraphNode } from "reagraph";
 import { useAppTheme } from "@/hooks/use-theme";
+import type { GraphNodeResponse } from "@/lib/graph/types";
+import type { PinnedPosition } from "@/types/view-state";
 
-type PinnedPositions = Record<string, { fx: number; fy: number; fz: number }>;
-
-const INITIAL_NODES: GraphNode[] = [
-  { id: "1", label: "Node 1" },
-  { id: "2", label: "Node 2" },
-  { id: "3", label: "Node 3" },
-  { id: "4", label: "Node 4" },
-  { id: "5", label: "Node 5" },
-];
-
-const INITIAL_EDGES: GraphEdge[] = [
-  { id: "e1-2", source: "1", target: "2" },
-  { id: "e2-3", source: "2", target: "3" },
-  { id: "e3-4", source: "3", target: "4" },
-  { id: "e4-5", source: "4", target: "5" },
-  { id: "e5-1", source: "5", target: "1" },
-  { id: "e1-3", source: "1", target: "3" },
-];
+type PinnedPositions = Record<string, PinnedPosition>;
 
 interface TramaGraphProps {
-  readonly?: boolean
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  readonly?: boolean;
+  selectedNodeId?: string;
+  initialPinnedPositions?: PinnedPositions;
+  onNodeClick?: (node: GraphNodeResponse) => void;
+  onPositionsChange?: (positions: PinnedPositions) => void;
+  onCanvasClick?: () => void;
 }
 
-export function TramaGraph({ readonly = false }: TramaGraphProps) {
+export function TramaGraph({
+  nodes,
+  edges,
+  readonly = false,
+  selectedNodeId,
+  initialPinnedPositions,
+  onNodeClick,
+  onPositionsChange,
+  onCanvasClick,
+}: TramaGraphProps) {
   const graphRef = useRef<GraphCanvasRef | null>(null);
-  const [pinnedPositions, setPinnedPositions] = useState<PinnedPositions>({});
+  const [pinnedPositions, setPinnedPositions] = useState<PinnedPositions>(
+    initialPinnedPositions ?? {},
+  );
   const { resolvedTheme } = useAppTheme();
   const theme = resolvedTheme === "dark" ? darkTheme : lightTheme;
+  const nodeClickedRef = useRef(false);
 
-  const nodes = INITIAL_NODES.map((node) => ({
+  const positionedNodes = nodes.map((node) => ({
     ...node,
     ...pinnedPositions[node.id],
   }));
 
-  const handleNodeDragged = useCallback((node: InternalGraphNode) => {
-    const { x, y, z } = node.position;
-    setPinnedPositions((prev) => ({
-      ...prev,
-      [node.id]: { fx: x, fy: y, fz: z },
-    }));
-  }, []);
+  const handleNodeDragged = useCallback(
+    (node: InternalGraphNode) => {
+      const { x, y, z } = node.position;
+      setPinnedPositions((prev) => {
+        const next = { ...prev, [node.id]: { fx: x, fy: y, fz: z } };
+        onPositionsChange?.(next);
+        return next;
+      });
+    },
+    [onPositionsChange],
+  );
+
+  const handleNodeClick = useCallback(
+    (node: InternalGraphNode) => {
+      nodeClickedRef.current = true;
+      if (onNodeClick && node.data) {
+        onNodeClick(node.data as GraphNodeResponse);
+      }
+    },
+    [onNodeClick],
+  );
+
+  const handleWrapperClick = useCallback(() => {
+    if (nodeClickedRef.current) {
+      nodeClickedRef.current = false;
+      return;
+    }
+    onCanvasClick?.();
+  }, [onCanvasClick]);
+
+  if (!nodes.length) {
+    return (
+      <div
+        className="flex flex-1 h-full items-center justify-center"
+        onClick={onCanvasClick}
+      >
+        <p className="text-sm text-zinc-400">No nodes to display</p>
+      </div>
+    );
+  }
 
   return (
-    <GraphCanvas
-      ref={graphRef}
-      nodes={nodes}
-      edges={INITIAL_EDGES}
-      theme={theme}
-      draggable={!readonly}
-      onNodeDragged={readonly ? undefined : handleNodeDragged}
-    />
+    <div className="w-full h-full" onClick={handleWrapperClick}>
+      <GraphCanvas
+        ref={graphRef}
+        nodes={positionedNodes}
+        edges={edges}
+        theme={theme}
+        draggable={!readonly}
+        selections={selectedNodeId ? [selectedNodeId] : []}
+        onNodeDragged={readonly ? undefined : handleNodeDragged}
+        onNodeClick={handleNodeClick}
+      />
+    </div>
   );
 }

@@ -1,3 +1,7 @@
+import type { InvestigationViewState } from './view-state'
+
+export type { InvestigationViewState }
+
 export type InvestigationStatus = "open" | "in_progress" | "closed" | "archived"
 export type InvestigationPriority = "low" | "medium" | "high" | "critical"
 
@@ -17,6 +21,7 @@ export interface Investigation {
   tags: string[]
   ownerId: string | null
   targets?: TargetNode[]
+  viewState?: InvestigationViewState | null
   createdAt: string
   updatedAt: string
 }

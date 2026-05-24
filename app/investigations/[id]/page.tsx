@@ -1,10 +1,18 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import type { GraphNode, GraphEdge } from "reagraph"
 import { investigationsApi } from "@/lib/api/investigations"
 import { TramaGraph } from "@/components/graph/graph-canvas"
+import { NodeDetailPanel } from "@/components/graph/node-detail-panel"
+import { AddNodeDialog } from "@/components/graph/add-node-dialog"
+import { useGraphData } from "@/hooks/use-graph-data"
+import { useViewState } from "@/hooks/use-view-state"
+import { toReagraphNode } from "@/lib/graph/adapters"
+import { graphApi } from "@/lib/api/graph"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
+import type { GraphNodeResponse, TramaNodeCategory } from "@/lib/graph/types"
 
 // ─── Display maps ─────────────────────────────────────────────────────────────
 
@@ -151,6 +159,10 @@ export default function InvestigationPage({
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [activeTool, setActiveTool] = useState<ActiveTool>(null)
+  const [selectedNode, setSelectedNode] = useState<GraphNodeResponse | null>(null)
+  const [localNodes, setLocalNodes] = useState<GraphNode[]>([])
+  const [localEdges, setLocalEdges] = useState<GraphEdge[]>([])
+  const [showAddNodeDialog, setShowAddNodeDialog] = useState(false)
 
   useEffect(() => {
     investigationsApi
@@ -160,6 +172,20 @@ export default function InvestigationPage({
       .finally(() => setLoading(false))
   }, [id])
 
+  const targetNodeIds = useMemo(
+    () => investigation?.targets?.map((t) => t.nodeId) ?? [],
+    [investigation],
+  )
+
+  const { nodes: graphNodes, edges: graphEdges, loading: graphLoading, error: graphError } =
+    useGraphData(targetNodeIds)
+
+  const { viewState, updatePinnedPositions, toggleBookmark, setNote, isBookmarked, getNoteForNode } =
+    useViewState(investigation)
+
+  useEffect(() => { setLocalNodes(graphNodes) }, [graphNodes])
+  useEffect(() => { setLocalEdges(graphEdges) }, [graphEdges])
+
   function handleExitEdit() {
     setIsEditing(false)
     setActiveTool(null)
@@ -167,6 +193,30 @@ export default function InvestigationPage({
 
   function toggleTool(tool: Exclude<ActiveTool, null>) {
     setActiveTool((prev) => (prev === tool ? null : tool))
+  }
+
+  function handleNodeClick(node: GraphNodeResponse) {
+    setSelectedNode((prev) => (prev?.id === node.id ? null : node))
+  }
+
+  function handleCanvasClick() {
+    if (activeTool === "node") setShowAddNodeDialog(true)
+  }
+
+  async function handleAddNode(label: string, category: TramaNodeCategory) {
+    try {
+      const { data: newNode } = await graphApi.createNode({ type: category, category, label })
+      setLocalNodes((prev) => [...prev, toReagraphNode(newNode)])
+      if (investigation) {
+        await investigationsApi.addTarget(investigation.id, {
+          nodeId: newNode.id,
+          nodeLabel: newNode.label,
+          nodeType: newNode.type,
+        })
+      }
+    } catch (err) {
+      console.error("Failed to create node:", err)
+    }
   }
 
   if (loading) {
@@ -218,6 +268,13 @@ export default function InvestigationPage({
           </span>
         </div>
 
+        {/* Graph stats */}
+        {!graphLoading && graphNodes.length > 0 && (
+          <span className="hidden sm:inline text-xs text-zinc-400 shrink-0">
+            {graphNodes.length} nodes · {graphEdges.length} edges
+          </span>
+        )}
+
         {isEditing ? (
           <button
             onClick={handleExitEdit}
@@ -240,85 +297,121 @@ export default function InvestigationPage({
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Metadata panel — view mode only */}
+        {/* Left panel — metadata / node detail */}
         {!isEditing && (
-          <aside className="w-72 flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto">
-            <div className="flex flex-col gap-5 p-4">
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Created</p>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300">{formatDate(investigation.createdAt)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Updated</p>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300">{formatDate(investigation.updatedAt)}</p>
-                </div>
-              </div>
-
-              {/* Description */}
-              {investigation.description && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Description</p>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">{investigation.description}</p>
-                </div>
-              )}
-
-              {/* Hypothesis */}
-              {investigation.hypothesis && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Hypothesis</p>
-                  <div className="rounded-md border-l-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-500/5 pl-3 pr-2 py-2.5">
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed italic">
-                      {investigation.hypothesis}
-                    </p>
+          <aside className="w-72 flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            {selectedNode ? (
+              <NodeDetailPanel
+                node={selectedNode}
+                isBookmarked={isBookmarked(selectedNode.id)}
+                note={getNoteForNode(selectedNode.id)}
+                onClose={() => setSelectedNode(null)}
+                onToggleBookmark={() => toggleBookmark(selectedNode.id)}
+                onNoteChange={(note) => setNote(selectedNode.id, note)}
+              />
+            ) : (
+              <div className="flex flex-col gap-5 p-4 overflow-y-auto">
+                {/* Dates */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Created</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300">{formatDate(investigation.createdAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Updated</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300">{formatDate(investigation.updatedAt)}</p>
                   </div>
                 </div>
-              )}
 
-              {/* Tags */}
-              {investigation.tags.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Tags</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {investigation.tags.map((tag) => (
-                      <span key={tag} className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-                        {tag}
-                      </span>
-                    ))}
+                {investigation.description && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Description</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">{investigation.description}</p>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Targets */}
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                  Targets{investigation?.targets && investigation?.targets?.length > 0 && <span className="font-normal normal-case ml-1">({investigation.targets.length})</span>}
-                </p>
-                {investigation.targets?.length === 0 ? (
-                  <p className="text-xs text-zinc-400">No targets defined</p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {investigation.targets?.map((target) => (
-                      <div key={target.nodeId} className="flex items-center gap-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${NODE_TYPE_STYLES[target.nodeType] ?? "bg-zinc-100 text-zinc-500"}`}>
-                          {target.nodeType}
+                {investigation.hypothesis && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Hypothesis</p>
+                    <div className="rounded-md border-l-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-500/5 pl-3 pr-2 py-2.5">
+                      <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed italic">
+                        {investigation.hypothesis}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {investigation.tags.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Tags</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {investigation.tags.map((tag) => (
+                        <span key={tag} className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                          {tag}
                         </span>
-                        <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{target.nodeLabel}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                    Targets{investigation?.targets && investigation.targets.length > 0 && (
+                      <span className="font-normal normal-case ml-1">({investigation.targets.length})</span>
+                    )}
+                  </p>
+                  {!investigation.targets?.length ? (
+                    <p className="text-xs text-zinc-400">No targets defined</p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {investigation.targets.map((target) => (
+                        <div key={target.nodeId} className="flex items-center gap-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2">
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${NODE_TYPE_STYLES[target.nodeType] ?? "bg-zinc-100 text-zinc-500"}`}>
+                            {target.nodeType}
+                          </span>
+                          <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{target.nodeLabel}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Graph error */}
+                {graphError && (
+                  <div className="rounded-md bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 px-3 py-2">
+                    <p className="text-xs text-red-600 dark:text-red-400">Graph error: {graphError}</p>
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </aside>
         )}
 
-        {/* Graph */}
+        {/* Graph canvas */}
         <div className="relative flex-1 min-w-0">
-          <TramaGraph readonly={!isEditing} />
+          {graphLoading ? (
+            <div className="flex flex-1 h-full items-center justify-center">
+              <span className="text-sm text-zinc-400">Loading graph…</span>
+            </div>
+          ) : (
+            <TramaGraph
+              nodes={localNodes}
+              edges={localEdges}
+              readonly={!isEditing}
+              selectedNodeId={selectedNode?.id}
+              initialPinnedPositions={viewState.graph?.pinnedPositions}
+              onNodeClick={handleNodeClick}
+              onPositionsChange={updatePinnedPositions}
+              onCanvasClick={isEditing ? handleCanvasClick : undefined}
+            />
+          )}
 
-          {/* Active tool hint */}
+          <AddNodeDialog
+            open={showAddNodeDialog}
+            onClose={() => setShowAddNodeDialog(false)}
+            onAdd={handleAddNode}
+          />
+
           {isEditing && activeToolData && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm px-4 py-2 shadow-sm pointer-events-none">
               <span className="text-zinc-500 dark:text-zinc-400">{activeToolData.icon}</span>
