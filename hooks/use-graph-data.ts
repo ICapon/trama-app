@@ -44,8 +44,10 @@ export function useGraphData(targetNodeIds: string[]): UseGraphDataResult {
 
           for (const { neighbor, edge } of neighbors) {
             nodeMap.set(neighbor.id, neighbor)
-            const reagraphEdge = toReagraphEdge(edge)
-            edgeMap.set(reagraphEdge.id, reagraphEdge)
+            if (edge) {
+              const reagraphEdge = toReagraphEdge(edge)
+              edgeMap.set(reagraphEdge.id, reagraphEdge)
+            }
           }
         }
 
@@ -67,5 +69,5 @@ export function useGraphData(targetNodeIds: string[]): UseGraphDataResult {
 // Internal type matching the backend NeighborResult shape
 interface NeighborResultRaw {
   neighbor: GraphNodeResponse
-  edge: import('@/lib/graph/types').GraphEdgeResponse
+  edge: import('@/lib/graph/types').GraphEdgeResponse | null
 }

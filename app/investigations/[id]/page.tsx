@@ -1,18 +1,18 @@
 "use client"
 
-import { use, useEffect, useMemo, useState } from "react"
+import { use, useEffect, useState } from "react"
 import Link from "next/link"
 import type { GraphNode, GraphEdge } from "reagraph"
 import { investigationsApi } from "@/lib/api/investigations"
 import { TramaGraph } from "@/components/graph/graph-canvas"
 import { NodeDetailPanel } from "@/components/graph/node-detail-panel"
 import { AddNodeDialog } from "@/components/graph/add-node-dialog"
-import { useGraphData } from "@/hooks/use-graph-data"
+import { useInvestigationGraph } from "@/hooks/use-investigation-graph"
 import { useViewState } from "@/hooks/use-view-state"
 import { toReagraphNode } from "@/lib/graph/adapters"
 import { graphApi } from "@/lib/api/graph"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
-import type { GraphNodeResponse, TramaNodeCategory } from "@/lib/graph/types"
+import type { GraphNodeResponse, TramaNodeType } from "@/lib/graph/types"
 
 // ─── Display maps ─────────────────────────────────────────────────────────────
 
@@ -172,13 +172,8 @@ export default function InvestigationPage({
       .finally(() => setLoading(false))
   }, [id])
 
-  const targetNodeIds = useMemo(
-    () => investigation?.targets?.map((t) => t.nodeId) ?? [],
-    [investigation],
-  )
-
   const { nodes: graphNodes, edges: graphEdges, loading: graphLoading, error: graphError } =
-    useGraphData(targetNodeIds)
+    useInvestigationGraph(id)
 
   const { viewState, updatePinnedPositions, toggleBookmark, setNote, isBookmarked, getNoteForNode } =
     useViewState(investigation)
@@ -203,9 +198,9 @@ export default function InvestigationPage({
     if (activeTool === "node") setShowAddNodeDialog(true)
   }
 
-  async function handleAddNode(label: string, category: TramaNodeCategory) {
+  async function handleAddNode(label: string, type: TramaNodeType) {
     try {
-      const { data: newNode } = await graphApi.createNode({ type: category, category, label })
+      const { data: newNode } = await graphApi.createNode({ type, label })
       setLocalNodes((prev) => [...prev, toReagraphNode(newNode)])
       if (investigation) {
         await investigationsApi.addTarget(investigation.id, {

@@ -1,12 +1,11 @@
 import { api } from "./client"
-import type { GraphNodeResponse, GraphEdgeResponse, TramaNodeCategory, NeighborResult } from "../graph/types"
+import type { GraphNodeResponse, GraphEdgeResponse, TramaNodeType, NeighborResult } from "../graph/types"
 
 const PREFIX = process.env.NEXT_PUBLIC_API_URL ? "" : "/api"
 const BASE = `${PREFIX}/graph`
 
 export type CreateNodeBody = {
-  type: string
-  category: TramaNodeCategory
+  type: TramaNodeType
   label: string
   properties?: Record<string, unknown>
 }
@@ -20,8 +19,11 @@ export const graphApi = {
       params: { depth },
     })
   },
-  createNode(body: CreateNodeBody) {
-    return api.post<GraphNodeResponse>(`${BASE}/node`, body)
+  createNode({ label, properties, ...rest }: CreateNodeBody) {
+    return api.post<GraphNodeResponse>(`${BASE}/node`, {
+      ...rest,
+      properties: { name: label, ...properties },
+    })
   },
 }
 

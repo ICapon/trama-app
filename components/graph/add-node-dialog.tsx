@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { TramaNodeCategory } from "@/lib/graph/types";
+import type { TramaNodeCategory, TramaNodeType } from "@/lib/graph/types";
+import { TRAMA_NODE_CATEGORIES } from "@/lib/graph/types";
 import { CATEGORY_LABELS } from "@/lib/graph/colors";
 
 interface AddNodeDialogProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (label: string, category: TramaNodeCategory) => void;
+  onAdd: (label: string, type: TramaNodeType) => void;
 }
 
 const CATEGORIES = Object.entries(CATEGORY_LABELS) as [TramaNodeCategory, string][];
@@ -15,17 +16,26 @@ const CATEGORIES = Object.entries(CATEGORY_LABELS) as [TramaNodeCategory, string
 export function AddNodeDialog({ open, onClose, onAdd }: AddNodeDialogProps) {
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<TramaNodeCategory>("identity");
+  const [type, setType] = useState<TramaNodeType>("Person");
 
   if (!open) return null;
+
+  function handleCategoryChange(cat: TramaNodeCategory) {
+    setCategory(cat);
+    setType(TRAMA_NODE_CATEGORIES[cat][0] as TramaNodeType);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!label.trim()) return;
-    onAdd(label.trim(), category);
+    onAdd(label.trim(), type);
     setLabel("");
     setCategory("identity");
+    setType("Person");
     onClose();
   }
+
+  const typesForCategory = TRAMA_NODE_CATEGORIES[category] as readonly TramaNodeType[];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -47,11 +57,23 @@ export function AddNodeDialog({ open, onClose, onAdd }: AddNodeDialogProps) {
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Category</label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as TramaNodeCategory)}
+              onChange={(e) => handleCategoryChange(e.target.value as TramaNodeCategory)}
               className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-500"
             >
               {CATEGORIES.map(([value, cat]) => (
                 <option key={value} value={value}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Type</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as TramaNodeType)}
+              className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-500"
+            >
+              {typesForCategory.map((t) => (
+                <option key={t} value={t}>{t}</option>
               ))}
             </select>
           </div>

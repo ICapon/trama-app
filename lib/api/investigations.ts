@@ -6,6 +6,12 @@ import type {
   AddTargetBody,
   InvestigationViewState,
 } from "@/types/investigation"
+import type { GraphNodeResponse, GraphEdgeResponse } from "@/lib/graph/types"
+
+export interface InvestigationGraphResponse {
+  nodes: GraphNodeResponse[]
+  edges: GraphEdgeResponse[]
+}
 
 // When NEXT_PUBLIC_API_URL is set (external backend), prefix defaults to ""
 // When using Next.js mock routes locally, prefix is "/api"
@@ -38,4 +44,7 @@ export const investigationsApi = {
 
   patchViewState: (id: string, viewState: InvestigationViewState) =>
     api.patch<void>(`${BASE}/${id}/view-state`, viewState),
+
+  getGraph: (id: string) =>
+    api.get<InvestigationGraphResponse>(`${BASE}/${id}/graph`),
 }
