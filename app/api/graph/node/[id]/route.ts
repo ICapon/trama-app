@@ -20,3 +20,18 @@ export async function GET(_request: Request, { params }: Params) {
   }
   return NextResponse.json(node)
 }
+
+export async function DELETE(_request: Request, { params }: Params) {
+  const { id } = await params
+
+  if (BACKEND) {
+    const res = await fetch(`${BACKEND}/graph/node/${id}`, { method: "DELETE" })
+    return new NextResponse(null, { status: res.status })
+  }
+
+  if (!MOCK_NODES.has(id)) {
+    return NextResponse.json({ message: "Not found" }, { status: 404 })
+  }
+  MOCK_NODES.delete(id)
+  return new NextResponse(null, { status: 204 })
+}

@@ -1,18 +1,21 @@
 "use client"
 
 import { use, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { GraphNode, GraphEdge } from "reagraph"
 import { investigationsApi } from "@/lib/api/investigations"
 import { TramaGraph } from "@/components/graph/graph-canvas"
+import type { GraphLayout } from "@/components/graph/graph-canvas"
 import { NodeDetailPanel } from "@/components/graph/node-detail-panel"
+import { EdgeDetailPanel } from "@/components/graph/edge-detail-panel"
 import { AddNodeDialog } from "@/components/graph/add-node-dialog"
 import { useInvestigationGraph } from "@/hooks/use-investigation-graph"
 import { useViewState } from "@/hooks/use-view-state"
 import { toReagraphNode } from "@/lib/graph/adapters"
 import { graphApi } from "@/lib/api/graph"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
-import type { GraphNodeResponse, TramaNodeType } from "@/lib/graph/types"
+import type { GraphEdgeResponse, GraphNodeResponse, TramaNodeType } from "@/lib/graph/types"
 
 // ─── Display maps ─────────────────────────────────────────────────────────────
 
@@ -93,6 +96,31 @@ function ArrowsIcon() {
   )
 }
 
+function LayoutForceIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <circle cx="4" cy="5" r="2" />
+      <circle cx="20" cy="5" r="2" />
+      <circle cx="4" cy="19" r="2" />
+      <circle cx="20" cy="19" r="2" />
+      <path d="M10 10 6 7M14 10l4-3M10 14l-4 3M14 14l4 3" />
+    </svg>
+  )
+}
+
+function LayoutHierarchicalIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="2" width="6" height="4" rx="1" />
+      <rect x="2" y="10" width="6" height="4" rx="1" />
+      <rect x="16" y="10" width="6" height="4" rx="1" />
+      <rect x="9" y="18" width="6" height="4" rx="1" />
+      <path d="M12 6v4M5 14v4M19 14v4M12 10H5M12 10h7" />
+    </svg>
+  )
+}
+
 function Trash2Icon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -106,8 +134,9 @@ function Trash2Icon() {
 type ActiveTool = "node" | "edge" | "delete" | null
 
 const TOOLS = [
-  { id: "node" as const, icon: <PlusCircleIcon />, label: "Node",     hint: "Click on the canvas to add a node" },
-  { id: "edge" as const, icon: <ArrowsIcon />,     label: "Relation", hint: "Connect two existing nodes" },
+  { id: "node"   as const, icon: <PlusCircleIcon />, label: "Node",     hint: "Click on the canvas to add a node" },
+  { id: "edge"   as const, icon: <ArrowsIcon />,     label: "Relation", hint: "Connect two existing nodes" },
+  { id: "delete" as const, icon: <Trash2Icon />,     label: "Delete Node", hint: "Click a node to delete it" },
 ]
 
 interface ToolButtonProps {
@@ -154,6 +183,7 @@ export default function InvestigationPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
+  const router = useRouter()
   const [investigation, setInvestigation] = useState<Investigation | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -163,6 +193,9 @@ export default function InvestigationPage({
   const [localNodes, setLocalNodes] = useState<GraphNode[]>([])
   const [localEdges, setLocalEdges] = useState<GraphEdge[]>([])
   const [showAddNodeDialog, setShowAddNodeDialog] = useState(false)
+  const [graphLayout, setGraphLayout] = useState<GraphLayout>("force")
+  const [selectedEdge, setSelectedEdge] = useState<GraphEdgeResponse | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     investigationsApi
@@ -172,7 +205,7 @@ export default function InvestigationPage({
       .finally(() => setLoading(false))
   }, [id])
 
-  const { nodes: graphNodes, edges: graphEdges, loading: graphLoading, error: graphError } =
+  const { nodes: graphNodes, edges: graphEdges, rawNodes, loading: graphLoading, error: graphError } =
     useInvestigationGraph(id)
 
   const { viewState, updatePinnedPositions, toggleBookmark, setNote, isBookmarked, getNoteForNode } =
@@ -180,6 +213,15 @@ export default function InvestigationPage({
 
   useEffect(() => { setLocalNodes(graphNodes) }, [graphNodes])
   useEffect(() => { setLocalEdges(graphEdges) }, [graphEdges])
+
+  async function handleDeleteInvestigation() {
+    try {
+      await investigationsApi.remove(id)
+      router.push("/")
+    } catch (err) {
+      console.error("Failed to delete investigation:", err)
+    }
+  }
 
   function handleExitEdit() {
     setIsEditing(false)
@@ -191,7 +233,28 @@ export default function InvestigationPage({
   }
 
   function handleNodeClick(node: GraphNodeResponse) {
+    if (activeTool === "delete") {
+      handleDeleteNode(node.id)
+      return
+    }
+    setSelectedEdge(null)
     setSelectedNode((prev) => (prev?.id === node.id ? null : node))
+  }
+
+  async function handleDeleteNode(nodeId: string) {
+    try {
+      await graphApi.deleteNode(nodeId)
+      setLocalNodes((prev) => prev.filter((n) => n.id !== nodeId))
+      setLocalEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId))
+      if (selectedNode?.id === nodeId) setSelectedNode(null)
+    } catch (err) {
+      console.error("Failed to delete node:", err)
+    }
+  }
+
+  function handleEdgeClick(edge: GraphEdgeResponse) {
+    setSelectedNode(null)
+    setSelectedEdge((prev) => (prev?.id === edge.id ? null : edge))
   }
 
   function handleCanvasClick() {
@@ -270,6 +333,35 @@ export default function InvestigationPage({
           </span>
         )}
 
+        {/* Layout toggle */}
+        <div className="hidden sm:flex items-center rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
+          <button
+            onClick={() => setGraphLayout("force")}
+            title="Force layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "force"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutForceIcon />
+            Force
+          </button>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+          <button
+            onClick={() => setGraphLayout("radial")}
+            title="Radial layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "radial"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutHierarchicalIcon />
+            Radial
+          </button>
+        </div>
+
         {isEditing ? (
           <button
             onClick={handleExitEdit}
@@ -279,13 +371,22 @@ export default function InvestigationPage({
             Done
           </button>
         ) : (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="flex items-center gap-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors shrink-0"
-          >
-            <PencilIcon />
-            Edit
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 rounded-md border border-red-200 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Trash2Icon />
+              Delete
+            </button>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            >
+              <PencilIcon />
+              Edit
+            </button>
+          </div>
         )}
       </header>
 
@@ -295,7 +396,14 @@ export default function InvestigationPage({
         {/* Left panel — metadata / node detail */}
         {!isEditing && (
           <aside className="w-72 flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            {selectedNode ? (
+            {selectedEdge ? (
+              <EdgeDetailPanel
+                edge={selectedEdge}
+                sourceNode={rawNodes.get(selectedEdge.source)}
+                targetNode={rawNodes.get(selectedEdge.target)}
+                onClose={() => setSelectedEdge(null)}
+              />
+            ) : selectedNode ? (
               <NodeDetailPanel
                 node={selectedNode}
                 isBookmarked={isBookmarked(selectedNode.id)}
@@ -394,8 +502,10 @@ export default function InvestigationPage({
               edges={localEdges}
               readonly={!isEditing}
               selectedNodeId={selectedNode?.id}
+              layout={graphLayout}
               initialPinnedPositions={viewState.graph?.pinnedPositions}
               onNodeClick={handleNodeClick}
+              onEdgeClick={handleEdgeClick}
               onPositionsChange={updatePinnedPositions}
               onCanvasClick={isEditing ? handleCanvasClick : undefined}
             />
@@ -403,7 +513,7 @@ export default function InvestigationPage({
 
           <AddNodeDialog
             open={showAddNodeDialog}
-            onClose={() => setShowAddNodeDialog(false)}
+            onClose={() => { setShowAddNodeDialog(false); setActiveTool(null); }}
             onAdd={handleAddNode}
           />
 
@@ -423,7 +533,7 @@ export default function InvestigationPage({
                 Add
               </p>
               <div className="flex flex-col gap-0.5">
-                {TOOLS.map((tool) => (
+                {TOOLS.filter((t) => t.id !== "delete").map((tool) => (
                   <ToolButton
                     key={tool.id}
                     icon={tool.icon}
@@ -437,7 +547,7 @@ export default function InvestigationPage({
             <div className="border-t border-zinc-200 dark:border-zinc-800 p-2">
               <ToolButton
                 icon={<Trash2Icon />}
-                label="Delete"
+                label="Delete Node"
                 active={activeTool === "delete"}
                 onClick={() => toggleTool("delete")}
                 variant="destructive"
@@ -446,6 +556,33 @@ export default function InvestigationPage({
           </aside>
         )}
       </div>
+
+      {/* Delete investigation confirm */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="relative z-10 w-80 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-5">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Delete investigation?</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-5">
+              This will permanently delete <span className="font-medium text-zinc-700 dark:text-zinc-300">{investigation.title}</span> and all its data. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteInvestigation}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition-colors"
+              >
+                Delete investigation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

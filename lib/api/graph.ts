@@ -25,6 +25,9 @@ export const graphApi = {
       properties: { name: label, ...properties },
     })
   },
+  deleteNode(id: string) {
+    return api.delete(`${BASE}/node/${id}`)
+  },
 }
 
 export type { GraphNodeResponse, GraphEdgeResponse }

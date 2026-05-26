@@ -17,5 +17,6 @@ export function toReagraphEdge(edge: GraphEdgeResponse): GraphEdge {
     source: edge.source,
     target: edge.target,
     label: edge.label,
+    data: edge,
   }
 }
