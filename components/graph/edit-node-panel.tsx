@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { GraphNodeResponse } from "@/lib/graph/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/graph/colors";
+import { uploadFile } from "@/lib/api/uploads";
 
-const SKIP_PROPS = new Set(["type", "createdAt", "updatedAt", "id"]);
+function proxiedUrl(url: string): string {
+  if (url.startsWith("/")) return url;
+  return `/api/uploads/proxy?url=${encodeURIComponent(url)}`;
+}
+
+const SKIP_PROPS = new Set(["type", "createdAt", "updatedAt", "id", "uploadUrl"]);
 
 function XIcon() {
   return (
@@ -30,6 +36,15 @@ function TrashIcon() {
   );
 }
 
+function CameraIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+      <circle cx="12" cy="13" r="3" />
+    </svg>
+  );
+}
+
 type PropEntry = { key: string; value: string };
 
 function toEntries(properties: Record<string, unknown>): PropEntry[] {
@@ -48,6 +63,12 @@ export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
   const [entries, setEntries] = useState<PropEntry[]>(() => toEntries(node.properties));
   const [newKey, setNewKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadUrl, setUploadUrl] = useState<string | null>(
+    typeof node.properties?.uploadUrl === "string" ? node.properties.uploadUrl : null,
+  );
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const color = CATEGORY_COLORS[node.category] ?? "#71717a";
   const categoryLabel = CATEGORY_LABELS[node.category] ?? node.category;
@@ -70,6 +91,22 @@ export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
     setNewKey("");
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const res = await uploadFile(file);
+      setUploadUrl(res.url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -77,6 +114,7 @@ export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
       for (const { key, value } of entries) {
         if (key) properties[key] = value;
       }
+      if (uploadUrl) properties.uploadUrl = uploadUrl;
       await onSave(node.id, properties);
       onClose();
     } finally {
@@ -104,8 +142,50 @@ export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
         </button>
       </div>
 
+      {/* Image upload */}
+      <div className="px-4 pt-3 pb-1 flex-shrink-0 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="relative group flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center transition-colors hover:border-zinc-400 dark:hover:border-zinc-500 disabled:opacity-60"
+        >
+          {uploadUrl ? (
+            <>
+              <img src={proxiedUrl(uploadUrl)} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="text-white"><CameraIcon /></span>
+              </div>
+            </>
+          ) : (
+            <span className="text-zinc-400 group-hover:text-zinc-500 dark:group-hover:text-zinc-300 transition-colors">
+              <CameraIcon />
+            </span>
+          )}
+          {uploading && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <svg className="animate-spin w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg>
+            </div>
+          )}
+        </button>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{node.label}</p>
+          <p className="text-[10px] text-zinc-400">{uploadUrl ? "Click to change image" : "Click to upload image"}</p>
+          {uploadError && <p className="text-[10px] text-red-500 dark:text-red-400">{uploadError}</p>}
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
       {/* ID (read-only) */}
-      <div className="px-4 pt-3 pb-1 flex-shrink-0">
+      <div className="px-4 pt-2 pb-1 flex-shrink-0">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">ID</p>
         <p className="text-[11px] font-mono text-zinc-400 truncate">{node.id}</p>
       </div>
@@ -181,7 +261,7 @@ export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || uploading}
           className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-50 transition-colors"
         >
           {saving ? "Saving…" : "Save"}
