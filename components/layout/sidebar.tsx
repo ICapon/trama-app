@@ -6,17 +6,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 function NetworkIcon() {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="5" r="3" />
       <circle cx="19" cy="19" r="3" />
       <circle cx="5" cy="19" r="3" />
@@ -27,18 +17,28 @@ function NetworkIcon() {
 
 function FolderIcon() {
   return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function PlugIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 22v-5" />
+      <path d="M9 8V2" />
+      <path d="M15 8V2" />
+      <path d="M18 8H6a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0v-4a2 2 0 0 0-2-2z" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   )
 }
@@ -66,9 +66,16 @@ function NavItem({ href, icon, label, active }: NavItemProps) {
   )
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+      {children}
+    </p>
+  )
+}
+
 export function Sidebar() {
   const pathname = usePathname()
-  const isHome = pathname === "/" || pathname.startsWith("/investigations")
 
   return (
     <aside className="flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40">
@@ -84,14 +91,26 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 p-2 flex-1">
-        <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-          Main
-        </p>
+        <SectionLabel>Main</SectionLabel>
         <NavItem
           href="/"
           icon={<FolderIcon />}
           label="Investigations"
-          active={isHome}
+          active={pathname === "/" || pathname.startsWith("/investigations")}
+        />
+
+        <SectionLabel>System</SectionLabel>
+        <NavItem
+          href="/providers"
+          icon={<PlugIcon />}
+          label="Providers"
+          active={pathname.startsWith("/providers")}
+        />
+        <NavItem
+          href="/history"
+          icon={<ClockIcon />}
+          label="Run History"
+          active={pathname.startsWith("/history")}
         />
       </nav>
 

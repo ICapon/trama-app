@@ -25,8 +25,14 @@ export const graphApi = {
       properties: { name: label, ...properties },
     })
   },
+  updateNode(id: string, properties: Record<string, unknown>) {
+    return api.patch<GraphNodeResponse>(`${BASE}/node/${id}`, { properties })
+  },
   deleteNode(id: string) {
     return api.delete(`${BASE}/node/${id}`)
+  },
+  createRelationship(body: { fromId: string; toId: string; type: string; properties?: Record<string, unknown> }) {
+    return api.post<GraphEdgeResponse>(`${BASE}/relationship`, body)
   },
 }
 

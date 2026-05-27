@@ -10,9 +10,11 @@ import type { GraphLayout } from "@/components/graph/graph-canvas"
 import { NodeDetailPanel } from "@/components/graph/node-detail-panel"
 import { EdgeDetailPanel } from "@/components/graph/edge-detail-panel"
 import { AddNodeDialog } from "@/components/graph/add-node-dialog"
+import { AddEdgeDialog } from "@/components/graph/add-edge-dialog"
+import { EditNodePanel } from "@/components/graph/edit-node-panel"
 import { useInvestigationGraph } from "@/hooks/use-investigation-graph"
 import { useViewState } from "@/hooks/use-view-state"
-import { toReagraphNode } from "@/lib/graph/adapters"
+import { toReagraphNode, toReagraphEdge } from "@/lib/graph/adapters"
 import { graphApi } from "@/lib/api/graph"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
 import type { GraphEdgeResponse, GraphNodeResponse, TramaNodeType } from "@/lib/graph/types"
@@ -196,6 +198,9 @@ export default function InvestigationPage({
   const [graphLayout, setGraphLayout] = useState<GraphLayout>("force")
   const [selectedEdge, setSelectedEdge] = useState<GraphEdgeResponse | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [edgeFromNode, setEdgeFromNode] = useState<GraphNodeResponse | null>(null)
+  const [edgeToNode, setEdgeToNode] = useState<GraphNodeResponse | null>(null)
+  const [editingNode, setEditingNode] = useState<GraphNodeResponse | null>(null)
 
   useEffect(() => {
     investigationsApi
@@ -205,11 +210,16 @@ export default function InvestigationPage({
       .finally(() => setLoading(false))
   }, [id])
 
-  const { nodes: graphNodes, edges: graphEdges, rawNodes, loading: graphLoading, error: graphError } =
+  const { nodes: graphNodes, edges: graphEdges, rawNodes, loading: graphLoading, error: graphError, refetch: refetchGraph } =
     useInvestigationGraph(id)
 
-  const { viewState, updatePinnedPositions, toggleBookmark, setNote, isBookmarked, getNoteForNode } =
+  const { viewState, updatePinnedPositions, toggleBookmark, setNote, updateLayout, flushSave, isBookmarked, getNoteForNode } =
     useViewState(investigation)
+
+  useEffect(() => {
+    const saved = investigation?.viewState?.graph?.layout
+    if (saved) setGraphLayout(saved)
+  }, [investigation])
 
   useEffect(() => { setLocalNodes(graphNodes) }, [graphNodes])
   useEffect(() => { setLocalEdges(graphEdges) }, [graphEdges])
@@ -223,13 +233,25 @@ export default function InvestigationPage({
     }
   }
 
+  function resetEdgeState() {
+    setEdgeFromNode(null)
+    setEdgeToNode(null)
+  }
+
   function handleExitEdit() {
+    updateLayout(graphLayout)
+    flushSave()
     setIsEditing(false)
     setActiveTool(null)
+    setEditingNode(null)
+    resetEdgeState()
   }
 
   function toggleTool(tool: Exclude<ActiveTool, null>) {
-    setActiveTool((prev) => (prev === tool ? null : tool))
+    setActiveTool((prev) => {
+      if (prev !== "edge" || tool !== "edge") resetEdgeState()
+      return prev === tool ? null : tool
+    })
   }
 
   function handleNodeClick(node: GraphNodeResponse) {
@@ -237,8 +259,40 @@ export default function InvestigationPage({
       handleDeleteNode(node.id)
       return
     }
+    if (activeTool === "edge") {
+      if (!edgeFromNode) {
+        setEdgeFromNode(node)
+      } else if (edgeFromNode.id === node.id) {
+        setEdgeFromNode(null)
+      } else {
+        setEdgeToNode(node)
+      }
+      return
+    }
     setSelectedEdge(null)
-    setSelectedNode((prev) => (prev?.id === node.id ? null : node))
+    if (isEditing) {
+      setEditingNode((prev) => (prev?.id === node.id ? null : node))
+    } else {
+      setSelectedNode((prev) => (prev?.id === node.id ? null : node))
+    }
+  }
+
+  async function handleCreateEdge(type: string) {
+    if (!edgeFromNode || !edgeToNode) return
+    try {
+      const { data: newEdge } = await graphApi.createRelationship({
+        fromId: edgeFromNode.id,
+        toId: edgeToNode.id,
+        type,
+      })
+      setLocalEdges((prev) => [...prev, toReagraphEdge(newEdge)])
+    } catch (err) {
+      console.error("Failed to create relationship:", err)
+    } finally {
+      resetEdgeState()
+      setActiveTool(null)
+      refetchGraph()
+    }
   }
 
   async function handleDeleteNode(nodeId: string) {
@@ -259,6 +313,12 @@ export default function InvestigationPage({
 
   function handleCanvasClick() {
     if (activeTool === "node") setShowAddNodeDialog(true)
+  }
+
+  async function handleSaveNodeProperties(nodeId: string, properties: Record<string, unknown>) {
+    const { data: updated } = await graphApi.updateNode(nodeId, properties)
+    setLocalNodes((prev) => prev.map((n) => n.id === nodeId ? { ...n, data: updated } : n))
+    refetchGraph()
   }
 
   async function handleAddNode(label: string, type: TramaNodeType) {
@@ -501,7 +561,7 @@ export default function InvestigationPage({
               nodes={localNodes}
               edges={localEdges}
               readonly={!isEditing}
-              selectedNodeId={selectedNode?.id}
+              selectedNodeId={activeTool === "edge" ? edgeFromNode?.id : isEditing ? editingNode?.id : selectedNode?.id}
               layout={graphLayout}
               initialPinnedPositions={viewState.graph?.pinnedPositions}
               onNodeClick={handleNodeClick}
@@ -511,16 +571,39 @@ export default function InvestigationPage({
             />
           )}
 
+          {isEditing && editingNode && !activeTool && (
+            <EditNodePanel
+              node={editingNode}
+              onClose={() => setEditingNode(null)}
+              onSave={handleSaveNodeProperties}
+            />
+          )}
+
           <AddNodeDialog
             open={showAddNodeDialog}
             onClose={() => { setShowAddNodeDialog(false); setActiveTool(null); }}
             onAdd={handleAddNode}
           />
 
+          {edgeFromNode && edgeToNode && (
+            <AddEdgeDialog
+              fromNode={edgeFromNode}
+              toNode={edgeToNode}
+              onClose={resetEdgeState}
+              onAdd={handleCreateEdge}
+            />
+          )}
+
           {isEditing && activeToolData && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm px-4 py-2 shadow-sm pointer-events-none">
               <span className="text-zinc-500 dark:text-zinc-400">{activeToolData.icon}</span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-300">{activeToolData.hint}</span>
+              <span className="text-xs text-zinc-600 dark:text-zinc-300">
+                {activeTool === "edge"
+                  ? edgeFromNode
+                    ? `"${edgeFromNode.label}" selected — now click the target node`
+                    : "Step 1: Click the source node"
+                  : activeToolData.hint}
+              </span>
             </div>
           )}
         </div>

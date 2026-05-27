@@ -10,6 +10,7 @@ export interface InvestigationViewState {
     bookmarkedNodeIds?: string[]
     hiddenNodeIds?: string[]
     depth?: number
+    layout?: "force" | "radial"
   }
   notes?: Record<string, string>
   lastSelectedNodeId?: string
