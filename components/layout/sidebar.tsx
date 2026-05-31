@@ -43,6 +43,17 @@ function ClockIcon() {
   )
 }
 
+function CalendarClockIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5" />
+      <path d="M16 2v4M8 2v4M3 10h5" />
+      <circle cx="17" cy="17" r="4" />
+      <path d="M17 15v2l1 1" />
+    </svg>
+  )
+}
+
 interface NavItemProps {
   href: string
   icon: React.ReactNode
@@ -111,6 +122,12 @@ export function Sidebar() {
           icon={<ClockIcon />}
           label="Run History"
           active={pathname.startsWith("/history")}
+        />
+        <NavItem
+          href="/cron-jobs"
+          icon={<CalendarClockIcon />}
+          label="Scheduled Jobs"
+          active={pathname.startsWith("/cron-jobs")}
         />
       </nav>
 
