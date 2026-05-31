@@ -24,7 +24,7 @@ export function toReagraphEdge(edge: GraphEdgeResponse): GraphEdge {
     id: edge.id,
     source: edge.source,
     target: edge.target,
-    label: edge.label,
+    label: edge.label ?? edge.type.toLowerCase().replace(/_/g, " "),
     data: edge,
   }
 }

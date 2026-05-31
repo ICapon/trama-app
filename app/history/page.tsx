@@ -38,17 +38,18 @@ function calcDuration(start: string | null, end: string | null) {
 }
 
 const SEED_LABELS: Record<keyof TramaProviderSeed, string> = {
-  firstName:  "First name",
-  lastName:   "Last name",
-  fullName:   "Full name",
-  birthDate:  "Birth date",
-  email:      "Email",
-  username:   "Username",
-  socialUrl:  "Social URL",
+  firstName: "First name",
+  lastName: "Last name",
+  fullName: "Full name",
+  birthDate: "Birth date",
+  email: "Email",
+  username: "Username",
+  socialUrl: "Social URL",
+  curp: "CURP",
+  rfc: "RFC"
 }
 
-function seedSummary(seed?: TramaProviderSeed): string {
-  if (!seed) return "—"
+function seedSummary(seed: TramaProviderSeed): string {
   return (seed.fullName ?? [seed.firstName, seed.lastName].filter(Boolean).join(" ")) || "—"
 }
 
@@ -93,7 +94,6 @@ export default function HistoryPage() {
                   <th className="px-4 py-2.5 text-left font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">Status</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">Provider</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">Target</th>
-                  <th className="px-4 py-2.5 text-left font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">Nodes</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">Duration</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">Started</th>
                 </tr>
@@ -114,34 +114,29 @@ export default function HistoryPage() {
                       </td>
                       <td className="px-4 py-3 font-mono text-zinc-700 dark:text-zinc-300">{job.source}</td>
                       <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">{seedSummary(job.seed)}</td>
-                      <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                        {job.createdNodeIds.length > 0 ? job.createdNodeIds.length : <span className="text-zinc-400">—</span>}
-                      </td>
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{calcDuration(job.startedAt, job.finishedAt)}</td>
                       <td className="px-4 py-3 text-zinc-500">{formatDate(job.startedAt)}</td>
                     </tr>
 
                     {expandedId === job.id && (
                       <tr key={`${job.id}-expanded`} className="bg-zinc-50 dark:bg-zinc-800/30">
-                        <td colSpan={6} className="px-4 py-4">
+                        <td colSpan={5} className="px-4 py-4">
                           <div className="flex flex-col gap-3">
                             {/* Seed */}
-                            {job.seed && (
-                              <div>
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Seed</p>
-                                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                                  {(Object.entries(job.seed) as [keyof TramaProviderSeed, string][])
-                                    .filter(([, v]) => v)
-                                    .map(([key, value]) => (
-                                      <div key={key}>
-                                        <p className="text-[10px] text-zinc-400">{SEED_LABELS[key]}</p>
-                                        <p className="text-xs text-zinc-700 dark:text-zinc-300">{value}</p>
-                                      </div>
-                                    ))
-                                  }
-                                </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Seed</p>
+                              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                {(Object.entries(job.seed) as [keyof TramaProviderSeed, string][])
+                                  .filter(([, v]) => v)
+                                  .map(([key, value]) => (
+                                    <div key={key}>
+                                      <p className="text-[10px] text-zinc-400">{SEED_LABELS[key]}</p>
+                                      <p className="text-xs text-zinc-700 dark:text-zinc-300">{value}</p>
+                                    </div>
+                                  ))
+                                }
                               </div>
-                            )}
+                            </div>
 
                             {/* Metadata */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -150,9 +145,15 @@ export default function HistoryPage() {
                                 <p className="font-mono text-zinc-600 dark:text-zinc-400 text-[11px] truncate">{job.id}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">Person ID</p>
-                                <p className="font-mono text-zinc-600 dark:text-zinc-400 text-[11px] truncate">{job.personId}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">Entity ID</p>
+                                <p className="font-mono text-zinc-600 dark:text-zinc-400 text-[11px] truncate">{job.entityId ?? "—"}</p>
                               </div>
+                              {job.investigationId && (
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">Investigation</p>
+                                  <p className="font-mono text-zinc-600 dark:text-zinc-400 text-[11px] truncate">{job.investigationId}</p>
+                                </div>
+                              )}
                               <div>
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">Finished</p>
                                 <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">{formatDate(job.finishedAt)}</p>
@@ -164,6 +165,15 @@ export default function HistoryPage() {
                                 </div>
                               )}
                             </div>
+
+                            {job.config && Object.keys(job.config).length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">Config</p>
+                                <pre className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-3 py-2 text-[10px] font-mono text-zinc-600 dark:text-zinc-400 overflow-x-auto whitespace-pre-wrap">
+                                  {JSON.stringify(job.config, null, 2)}
+                                </pre>
+                              </div>
+                            )}
 
                             {job.errorMessage && (
                               <p className="rounded-md bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 px-3 py-2 text-xs text-red-600 dark:text-red-400">

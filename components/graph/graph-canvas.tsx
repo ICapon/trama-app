@@ -115,6 +115,8 @@ export function TramaGraph({
         layoutType={LAYOUT_MAP[layout]}
         draggable={!readonly}
         selections={selectedNodeId ? [selectedNodeId] : []}
+        labelType="all"
+        edgeLabelPosition="natural"
         onNodeDragged={readonly ? undefined : handleNodeDragged}
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}

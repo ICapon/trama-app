@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { GraphNodeResponse } from "@/lib/graph/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/graph/colors";
+import { UrlPreviewDialog, isUrl } from "@/components/graph/url-preview-dialog";
 
 const SKIP_PROPS = new Set(["type", "createdAt", "updatedAt", "id"]);
 
@@ -24,6 +25,15 @@ const PROP_LABELS: Record<string, string> = {
   description: "Description",
   notes: "Notes",
 };
+
+function GlobeIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
 
 function XIcon() {
   return (
@@ -82,6 +92,7 @@ export function NodeDetailPanel({
   onNoteChange,
 }: NodeDetailPanelProps) {
   const [localNote, setLocalNote] = useState(note);
+  const [previewUrl, setPreviewUrl] = useState<{ url: string; label: string } | null>(null);
   const color = CATEGORY_COLORS[node.category] ?? "#71717a";
   const categoryLabel = CATEGORY_LABELS[node.category] ?? node.category;
 
@@ -94,6 +105,7 @@ export function NodeDetailPanel({
   }
 
   return (
+    <>
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-start justify-between gap-2 p-4 border-b border-zinc-200 dark:border-zinc-800">
@@ -143,6 +155,17 @@ export function NodeDetailPanel({
                 <ConfidenceBar value={value} />
               ) : key === "riskScore" && typeof value === "number" ? (
                 <RiskBadge value={value} />
+              ) : isUrl(value) ? (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all min-w-0 flex-1">{String(value)}</p>
+                  <button
+                    onClick={() => setPreviewUrl({ url: String(value), label: PROP_LABELS[key] ?? key })}
+                    title="Preview URL"
+                    className="flex-shrink-0 p-1 rounded-md text-zinc-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors"
+                  >
+                    <GlobeIcon />
+                  </button>
+                </div>
               ) : (
                 <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all">{String(value)}</p>
               )}
@@ -178,5 +201,14 @@ export function NodeDetailPanel({
         </div>
       </div>
     </div>
+
+    {previewUrl && (
+      <UrlPreviewDialog
+        url={previewUrl.url}
+        label={previewUrl.label}
+        onClose={() => setPreviewUrl(null)}
+      />
+    )}
+    </>
   );
 }

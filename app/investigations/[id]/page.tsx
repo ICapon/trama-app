@@ -574,6 +574,7 @@ export default function InvestigationPage({
           {isEditing && editingNode && !activeTool && (
             <EditNodePanel
               node={editingNode}
+              investigationId={id}
               onClose={() => setEditingNode(null)}
               onSave={handleSaveNodeProperties}
             />

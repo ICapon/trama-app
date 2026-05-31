@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { GraphNodeResponse } from "@/lib/graph/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/graph/colors";
 import { uploadFile } from "@/lib/api/uploads";
+import { StartJobDialog } from "@/components/graph/start-job-dialog";
 
 function proxiedUrl(url: string): string {
   if (url.startsWith("/")) return url;
@@ -24,6 +25,14 @@ function PlusIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <polygon points="5 3 19 12 5 21 5 3" />
     </svg>
   );
 }
@@ -55,14 +64,16 @@ function toEntries(properties: Record<string, unknown>): PropEntry[] {
 
 interface EditNodePanelProps {
   node: GraphNodeResponse;
+  investigationId: string;
   onClose: () => void;
   onSave: (nodeId: string, properties: Record<string, unknown>) => Promise<void>;
 }
 
-export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
+export function EditNodePanel({ node, investigationId, onClose, onSave }: EditNodePanelProps) {
   const [entries, setEntries] = useState<PropEntry[]>(() => toEntries(node.properties));
   const [newKey, setNewKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showStartJob, setShowStartJob] = useState(false);
   const [uploadUrl, setUploadUrl] = useState<string | null>(
     typeof node.properties?.uploadUrl === "string" ? node.properties.uploadUrl : null,
   );
@@ -252,21 +263,38 @@ export function EditNodePanel({ node, onClose, onSave }: EditNodePanelProps) {
       </div>
 
       {/* Footer */}
-      <div className="flex justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0">
         <button
-          onClick={onClose}
-          className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          onClick={() => setShowStartJob(true)}
+          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors"
         >
-          Cancel
+          <PlayIcon />
+          Start Job
         </button>
-        <button
-          onClick={handleSave}
-          disabled={saving || uploading}
-          className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-50 transition-colors"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || uploading}
+            className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
+
+      {showStartJob && (
+        <StartJobDialog
+          node={node}
+          investigationId={investigationId}
+          onClose={() => setShowStartJob(false)}
+        />
+      )}
     </div>
   );
 }
