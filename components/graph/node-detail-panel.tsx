@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { GraphNodeResponse } from "@/lib/graph/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/graph/colors";
-import { UrlPreviewDialog, isUrl } from "@/components/graph/url-preview-dialog";
+import { isUrl } from "@/components/graph/url-preview-dialog";
 
 const SKIP_PROPS = new Set(["type", "createdAt", "updatedAt", "id"]);
 
@@ -92,7 +92,6 @@ export function NodeDetailPanel({
   onNoteChange,
 }: NodeDetailPanelProps) {
   const [localNote, setLocalNote] = useState(note);
-  const [previewUrl, setPreviewUrl] = useState<{ url: string; label: string } | null>(null);
   const color = CATEGORY_COLORS[node.category] ?? "#71717a";
   const categoryLabel = CATEGORY_LABELS[node.category] ?? node.category;
 
@@ -158,13 +157,15 @@ export function NodeDetailPanel({
               ) : isUrl(value) ? (
                 <div className="flex items-center gap-1.5">
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all min-w-0 flex-1">{String(value)}</p>
-                  <button
-                    onClick={() => setPreviewUrl({ url: String(value), label: PROP_LABELS[key] ?? key })}
-                    title="Preview URL"
+                  <a
+                    href={String(value)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open in new tab"
                     className="flex-shrink-0 p-1 rounded-md text-zinc-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors"
                   >
                     <GlobeIcon />
-                  </button>
+                  </a>
                 </div>
               ) : (
                 <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all">{String(value)}</p>
@@ -202,13 +203,6 @@ export function NodeDetailPanel({
       </div>
     </div>
 
-    {previewUrl && (
-      <UrlPreviewDialog
-        url={previewUrl.url}
-        label={previewUrl.label}
-        onClose={() => setPreviewUrl(null)}
-      />
-    )}
-    </>
+</>
   );
 }

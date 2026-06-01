@@ -12,7 +12,8 @@ import { EdgeDetailPanel } from "@/components/graph/edge-detail-panel"
 import { AddNodeDialog } from "@/components/graph/add-node-dialog"
 import { AddEdgeDialog } from "@/components/graph/add-edge-dialog"
 import { EditNodePanel } from "@/components/graph/edit-node-panel"
-import { useInvestigationGraph } from "@/hooks/use-investigation-graph"
+import { useInvestigationGraph, type GraphFilters } from "@/hooks/use-investigation-graph"
+import { GraphFilterToolbar } from "@/components/graph/graph-filter-toolbar"
 import { useViewState } from "@/hooks/use-view-state"
 import { toReagraphNode, toReagraphEdge } from "@/lib/graph/adapters"
 import { graphApi } from "@/lib/api/graph"
@@ -201,6 +202,7 @@ export default function InvestigationPage({
   const [edgeFromNode, setEdgeFromNode] = useState<GraphNodeResponse | null>(null)
   const [edgeToNode, setEdgeToNode] = useState<GraphNodeResponse | null>(null)
   const [editingNode, setEditingNode] = useState<GraphNodeResponse | null>(null)
+  const [graphFilters, setGraphFilters] = useState<GraphFilters>({ relationshipTypes: [] })
 
   useEffect(() => {
     investigationsApi
@@ -210,8 +212,8 @@ export default function InvestigationPage({
       .finally(() => setLoading(false))
   }, [id])
 
-  const { nodes: graphNodes, edges: graphEdges, rawNodes, loading: graphLoading, error: graphError, refetch: refetchGraph } =
-    useInvestigationGraph(id)
+  const { nodes: graphNodes, edges: graphEdges, rawNodes, availableRelTypes, loading: graphLoading, error: graphError, refetch: refetchGraph } =
+    useInvestigationGraph(id, graphFilters)
 
   const { viewState, updatePinnedPositions, toggleBookmark, setNote, updateLayout, flushSave, isBookmarked, getNoteForNode } =
     useViewState(investigation)
@@ -392,6 +394,13 @@ export default function InvestigationPage({
             {graphNodes.length} nodes · {graphEdges.length} edges
           </span>
         )}
+
+        {/* Relationship filter */}
+        <GraphFilterToolbar
+          filters={graphFilters}
+          availableRelTypes={availableRelTypes}
+          onChange={setGraphFilters}
+        />
 
         {/* Layout toggle */}
         <div className="hidden sm:flex items-center rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
