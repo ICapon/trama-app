@@ -14,6 +14,8 @@ import { AddEdgeDialog } from "@/components/graph/add-edge-dialog"
 import { EditNodePanel } from "@/components/graph/edit-node-panel"
 import { useInvestigationGraph, type GraphFilters } from "@/hooks/use-investigation-graph"
 import { GraphFilterToolbar } from "@/components/graph/graph-filter-toolbar"
+import { GraphConfigPanel } from "@/components/graph/graph-config-panel"
+import type { GraphConfig } from "@/types/graph-config"
 import { useViewState } from "@/hooks/use-view-state"
 import { toReagraphNode, toReagraphEdge } from "@/lib/graph/adapters"
 import { graphApi } from "@/lib/api/graph"
@@ -203,6 +205,7 @@ export default function InvestigationPage({
   const [edgeToNode, setEdgeToNode] = useState<GraphNodeResponse | null>(null)
   const [editingNode, setEditingNode] = useState<GraphNodeResponse | null>(null)
   const [graphFilters, setGraphFilters] = useState<GraphFilters>({ relationshipTypes: [] })
+  const [activeConfigId, setActiveConfigId] = useState<string | null>(null)
 
   useEffect(() => {
     investigationsApi
@@ -238,6 +241,28 @@ export default function InvestigationPage({
   function resetEdgeState() {
     setEdgeFromNode(null)
     setEdgeToNode(null)
+  }
+
+  function applyGraphConfig(config: GraphConfig) {
+    setGraphFilters({ relationshipTypes: config.filters.relationshipTypes })
+    setGraphLayout(config.layout)
+    setActiveConfigId(config.id)
+  }
+
+  function resetGraphView() {
+    setGraphFilters({ relationshipTypes: [] })
+    setGraphLayout("force")
+    setActiveConfigId(null)
+  }
+
+  function handleFiltersChange(filters: GraphFilters) {
+    setGraphFilters(filters)
+    setActiveConfigId(null)
+  }
+
+  function handleLayoutChange(layout: "force" | "radial") {
+    setGraphLayout(layout)
+    setActiveConfigId(null)
   }
 
   function handleExitEdit() {
@@ -395,17 +420,29 @@ export default function InvestigationPage({
           </span>
         )}
 
+        {/* Saved views */}
+        {investigation && (
+          <GraphConfigPanel
+            investigationId={investigation.id}
+            currentFilters={graphFilters}
+            currentLayout={graphLayout}
+            activeConfigId={activeConfigId}
+            onApply={applyGraphConfig}
+            onReset={resetGraphView}
+          />
+        )}
+
         {/* Relationship filter */}
         <GraphFilterToolbar
           filters={graphFilters}
           availableRelTypes={availableRelTypes}
-          onChange={setGraphFilters}
+          onChange={handleFiltersChange}
         />
 
         {/* Layout toggle */}
         <div className="hidden sm:flex items-center rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
           <button
-            onClick={() => setGraphLayout("force")}
+            onClick={() => handleLayoutChange("force")}
             title="Force layout"
             className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
               graphLayout === "force"
@@ -418,7 +455,7 @@ export default function InvestigationPage({
           </button>
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
           <button
-            onClick={() => setGraphLayout("radial")}
+            onClick={() => handleLayoutChange("radial")}
             title="Radial layout"
             className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
               graphLayout === "radial"
