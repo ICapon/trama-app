@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { api } from "@/lib/api/client"
+import { CredentialDialog } from "@/components/providers/CredentialDialog"
 import type { Provider, TramaProviderCategory } from "@/types/provider"
 
 // ─── Display maps ─────────────────────────────────────────────────────────────
@@ -62,6 +63,14 @@ function TrashIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+function KeyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
     </svg>
   )
 }
@@ -262,6 +271,7 @@ function ProviderCard({ provider: initial, onDeleted }: ProviderCardProps) {
   const [toggling, setToggling] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showCredentials, setShowCredentials] = useState(false)
 
   async function handleToggle() {
     setToggling(true)
@@ -306,6 +316,15 @@ function ProviderCard({ provider: initial, onDeleted }: ProviderCardProps) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Credentials */}
+          <button
+            onClick={() => setShowCredentials(true)}
+            title="Manage credentials"
+            className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <KeyIcon />
+          </button>
+
           {/* Active toggle */}
           <button
             onClick={handleToggle}
@@ -327,6 +346,14 @@ function ProviderCard({ provider: initial, onDeleted }: ProviderCardProps) {
             <TrashIcon />
           </button>
         </div>
+
+        {showCredentials && (
+          <CredentialDialog
+            providerSource={provider.source}
+            providerName={provider.name}
+            onClose={() => setShowCredentials(false)}
+          />
+        )}
       </div>
 
       {/* Description */}

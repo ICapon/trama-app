@@ -6,11 +6,12 @@ const BACKEND = process.env.API_URL
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
   const { id } = await params
 
   if (BACKEND) {
-    const res = await fetch(`${BACKEND}/investigations/${id}/graph`)
+    const { search } = new URL(request.url)
+    const res = await fetch(`${BACKEND}/investigations/${id}/graph${search}`)
     const data = await res.json()
     return NextResponse.json(data, { status: res.status })
   }

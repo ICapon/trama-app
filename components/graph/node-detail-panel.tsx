@@ -4,8 +4,15 @@ import { useState } from "react";
 import type { GraphNodeResponse } from "@/lib/graph/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/graph/colors";
 import { isUrl } from "@/components/graph/url-preview-dialog";
+import { SocialAnalysisPanel } from "@/components/graph/SocialAnalysisPanel";
 
 const SKIP_PROPS = new Set(["type", "createdAt", "updatedAt", "id"]);
+
+const LOCATION_PROPS = new Set(["declaredLocation", "location", "address", "place"]);
+
+function isLocationProp(key: string) {
+  return LOCATION_PROPS.has(key) || key.toLowerCase().includes("location") || key.toLowerCase().includes("address");
+}
 
 const PROP_LABELS: Record<string, string> = {
   firstName: "First name",
@@ -31,6 +38,15 @@ function GlobeIcon() {
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+function MapPinIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
     </svg>
   );
 }
@@ -92,12 +108,17 @@ export function NodeDetailPanel({
   onNoteChange,
 }: NodeDetailPanelProps) {
   const [localNote, setLocalNote] = useState(note);
+  const [activeTab, setActiveTab] = useState<"props" | "analysis">("props");
+  const isSocialProfile = node.type === "SocialProfile";
   const color = CATEGORY_COLORS[node.category] ?? "#71717a";
   const categoryLabel = CATEGORY_LABELS[node.category] ?? node.category;
 
   const knownProps = Object.entries(node.properties).filter(
-    ([k, v]) => !SKIP_PROPS.has(k) && v !== null && v !== undefined && v !== "",
+    ([k, v]) => !SKIP_PROPS.has(k) && v !== null && v !== undefined && v !== "" && !Array.isArray(v),
   );
+
+  const locationProps = knownProps.filter(([k]) => isLocationProp(k));
+  const otherProps = knownProps.filter(([k]) => !isLocationProp(k));
 
   function handleNoteBlur() {
     if (localNote !== note) onNoteChange(localNote);
@@ -140,38 +161,87 @@ export function NodeDetailPanel({
         </div>
       </div>
 
+      {/* Tabs — only visible for SocialProfile */}
+      {isSocialProfile && (
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 px-4">
+          {(["props", "analysis"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 pt-1 mr-4 text-xs font-medium border-b-2 transition-colors ${
+                activeTab === tab
+                  ? "border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100"
+                  : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
+            >
+              {tab === "props" ? "Propiedades" : "Análisis"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Analysis tab */}
+      {isSocialProfile && activeTab === "analysis" && (
+        <SocialAnalysisPanel nodeId={node.id} />
+      )}
+
       {/* Properties */}
+      {(!isSocialProfile || activeTab === "props") && (
       <div className="flex flex-col gap-4 p-4">
         {knownProps.length === 0 ? (
           <p className="text-xs text-zinc-400">No additional properties</p>
         ) : (
-          knownProps.map(([key, value]) => (
-            <div key={key}>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
-                {PROP_LABELS[key] ?? key}
-              </p>
-              {key === "confidence" && typeof value === "number" ? (
-                <ConfidenceBar value={value} />
-              ) : key === "riskScore" && typeof value === "number" ? (
-                <RiskBadge value={value} />
-              ) : isUrl(value) ? (
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all min-w-0 flex-1">{String(value)}</p>
-                  <a
-                    href={String(value)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Open in new tab"
-                    className="flex-shrink-0 p-1 rounded-md text-zinc-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors"
-                  >
-                    <GlobeIcon />
-                  </a>
+          <>
+            {/* Location section — shown first if present */}
+            {locationProps.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/10 px-3 py-2.5">
+                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                  <MapPinIcon />
+                  <p className="text-[10px] font-semibold uppercase tracking-wider">Ubicación</p>
                 </div>
-              ) : (
-                <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all">{String(value)}</p>
-              )}
-            </div>
-          ))
+                {locationProps.map(([key, value]) => (
+                  <div key={key} className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-500 mb-0.5">{PROP_LABELS[key] ?? key}</p>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all">{String(value)}</p>
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps/search/${encodeURIComponent(String(value))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Buscar en Google Maps"
+                      className="flex-shrink-0 p-1 rounded-md text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-800/30 transition-colors mt-3"
+                    >
+                      <GlobeIcon />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Rest of properties */}
+            {otherProps.map(([key, value]) => (
+              <div key={key}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                  {PROP_LABELS[key] ?? key}
+                </p>
+                {key === "confidence" && typeof value === "number" ? (
+                  <ConfidenceBar value={value} />
+                ) : key === "riskScore" && typeof value === "number" ? (
+                  <RiskBadge value={value} />
+                ) : isUrl(value) ? (
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all min-w-0 flex-1">{String(value)}</p>
+                    <a href={String(value)} target="_blank" rel="noopener noreferrer" title="Open in new tab" className="flex-shrink-0 p-1 rounded-md text-zinc-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors">
+                      <GlobeIcon />
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-700 dark:text-zinc-300 break-all">{String(value)}</p>
+                )}
+              </div>
+            ))}
+          </>
         )}
 
         {/* Analyst note */}
@@ -189,6 +259,8 @@ export function NodeDetailPanel({
           />
         </div>
       </div>
+
+      )}
 
       {/* Footer timestamps */}
       <div className="mt-auto border-t border-zinc-200 dark:border-zinc-800 px-4 py-3 grid grid-cols-2 gap-3">

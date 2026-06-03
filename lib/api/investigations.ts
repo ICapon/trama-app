@@ -45,8 +45,12 @@ export const investigationsApi = {
   patchViewState: (id: string, viewState: InvestigationViewState) =>
     api.patch<void>(`${BASE}/${id}/view-state`, viewState),
 
-  getGraph: (id: string, filters?: { relTypes?: string[] }) =>
+  getGraph: (id: string, filters?: { relTypes?: string[]; depth?: number; direction?: string }) =>
     api.get<InvestigationGraphResponse>(`${BASE}/${id}/graph`, {
-      params: filters?.relTypes?.length ? { relTypes: filters.relTypes.join(',') } : undefined,
+      params: {
+        ...(filters?.relTypes?.length                    ? { relTypes:   filters.relTypes.join(',') } : {}),
+        ...(filters?.depth && filters.depth !== 1        ? { depth:      filters.depth              } : {}),
+        ...(filters?.direction && filters.direction !== 'both' ? { direction: filters.direction     } : {}),
+      },
     }),
 }

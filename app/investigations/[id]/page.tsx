@@ -204,7 +204,7 @@ export default function InvestigationPage({
   const [edgeFromNode, setEdgeFromNode] = useState<GraphNodeResponse | null>(null)
   const [edgeToNode, setEdgeToNode] = useState<GraphNodeResponse | null>(null)
   const [editingNode, setEditingNode] = useState<GraphNodeResponse | null>(null)
-  const [graphFilters, setGraphFilters] = useState<GraphFilters>({ relationshipTypes: [] })
+  const [graphFilters, setGraphFilters] = useState<GraphFilters>({ relationshipTypes: [], nodeTypes: [], depth: 2, direction: 'both' })
   const [activeConfigId, setActiveConfigId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -215,7 +215,7 @@ export default function InvestigationPage({
       .finally(() => setLoading(false))
   }, [id])
 
-  const { nodes: graphNodes, edges: graphEdges, rawNodes, availableRelTypes, loading: graphLoading, error: graphError, refetch: refetchGraph } =
+  const { nodes: graphNodes, edges: graphEdges, rawNodes, availableRelTypes, availableNodeTypes, loading: graphLoading, error: graphError, refetch: refetchGraph } =
     useInvestigationGraph(id, graphFilters)
 
   const { viewState, updatePinnedPositions, toggleBookmark, setNote, updateLayout, flushSave, isBookmarked, getNoteForNode } =
@@ -244,13 +244,13 @@ export default function InvestigationPage({
   }
 
   function applyGraphConfig(config: GraphConfig) {
-    setGraphFilters({ relationshipTypes: config.filters.relationshipTypes })
+    setGraphFilters((prev) => ({ ...prev, relationshipTypes: config.filters.relationshipTypes }))
     setGraphLayout(config.layout)
     setActiveConfigId(config.id)
   }
 
   function resetGraphView() {
-    setGraphFilters({ relationshipTypes: [] })
+    setGraphFilters((prev) => ({ ...prev, relationshipTypes: [], nodeTypes: [], direction: 'both' }))
     setGraphLayout("force")
     setActiveConfigId(null)
   }
@@ -436,7 +436,9 @@ export default function InvestigationPage({
         <GraphFilterToolbar
           filters={graphFilters}
           availableRelTypes={availableRelTypes}
+          availableNodeTypes={availableNodeTypes}
           onChange={handleFiltersChange}
+          loading={graphLoading}
         />
 
         {/* Layout toggle */}
@@ -573,14 +575,28 @@ export default function InvestigationPage({
                     <p className="text-xs text-zinc-400">No targets defined</p>
                   ) : (
                     <div className="flex flex-col gap-1.5">
-                      {investigation.targets.map((target) => (
-                        <div key={target.nodeId} className="flex items-center gap-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2">
-                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${NODE_TYPE_STYLES[target.nodeType] ?? "bg-zinc-100 text-zinc-500"}`}>
-                            {target.nodeType}
-                          </span>
-                          <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{target.nodeLabel}</span>
-                        </div>
-                      ))}
+                      {investigation.targets.map((target) => {
+                        const node = rawNodes.get(target.nodeId)
+                        return (
+                          <button
+                            key={target.nodeId}
+                            onClick={() => node && setSelectedNode(node)}
+                            disabled={!node}
+                            title={node ? "Ver nodo" : "Nodo no visible con el depth actual"}
+                            className="flex items-center gap-2 w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2 text-left transition-colors hover:border-zinc-400 dark:hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold shrink-0 ${NODE_TYPE_STYLES[target.nodeType] ?? "bg-zinc-100 text-zinc-500"}`}>
+                              {target.nodeType}
+                            </span>
+                            <span className="text-xs truncate text-zinc-700 dark:text-zinc-300">
+                              {target.nodeLabel}
+                            </span>
+                            {node && (
+                              <span className="ml-auto shrink-0 text-[10px] text-zinc-400">→</span>
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

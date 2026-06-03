@@ -1,5 +1,6 @@
 import { api } from "./client"
 import type { GraphNodeResponse, GraphEdgeResponse, TramaNodeType, NeighborResult } from "../graph/types"
+import type { SocialAnalysis } from "@/types/social-analysis"
 
 const PREFIX = process.env.NEXT_PUBLIC_API_URL ? "" : "/api"
 const BASE = `${PREFIX}/graph`
@@ -33,6 +34,9 @@ export const graphApi = {
   },
   createRelationship(body: { fromId: string; toId: string; type: string; properties?: Record<string, unknown> }) {
     return api.post<GraphEdgeResponse>(`${BASE}/relationship`, body)
+  },
+  getSocialAnalysis(id: string) {
+    return api.get<SocialAnalysis>(`${BASE}/node/${id}/social-analysis`)
   },
 }
 

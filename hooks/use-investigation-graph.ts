@@ -6,10 +6,17 @@ import { investigationsApi } from '@/lib/api/investigations'
 import { toReagraphNode, toReagraphEdge } from '@/lib/graph/adapters'
 import type { GraphNodeResponse, GraphEdgeResponse } from '@/lib/graph/types'
 
+export type RelDirection = 'both' | 'outgoing' | 'incoming'
+
 export interface GraphFilters {
   /** Only show edges of these relationship types. Empty = show all. */
   relationshipTypes: string[]
-  // Extensible: add nodeTypes, dateRange, confidence, etc. here
+  /** Only show nodes of these types. Empty = show all. */
+  nodeTypes: string[]
+  /** How many hops to expand from root nodes. 1–3. Default: 1. */
+  depth: number
+  /** Direction to traverse from root nodes. Default: 'both'. */
+  direction: RelDirection
 }
 
 interface UseInvestigationGraphResult {
@@ -18,6 +25,8 @@ interface UseInvestigationGraphResult {
   rawNodes: Map<string, GraphNodeResponse>
   /** All unique relationship types present in the full (unfiltered) graph. */
   availableRelTypes: string[]
+  /** All unique node types present in the full (unfiltered) graph. */
+  availableNodeTypes: string[]
   loading: boolean
   error: string | null
   refetch: () => void
@@ -42,14 +51,14 @@ export function useInvestigationGraph(
     setError(null)
 
     investigationsApi
-      .getGraph(investigationId)
+      .getGraph(investigationId, { relTypes: filters?.relationshipTypes, depth: filters?.depth, direction: filters?.direction })
       .then(({ data }) => {
         setRawNodesList(data.nodes)
         setRawEdgesList(data.edges)
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [investigationId, tick])
+  }, [investigationId, tick, filters?.depth, filters?.direction])
 
   const availableRelTypes = useMemo(() => {
     const types = new Set<string>()
@@ -57,21 +66,38 @@ export function useInvestigationGraph(
     return [...types].sort()
   }, [rawEdgesList])
 
-  const activeRelTypes = filters?.relationshipTypes ?? []
+  const availableNodeTypes = useMemo(() => {
+    const types = new Set<string>()
+    rawNodesList.forEach((n) => { if (n.type) types.add(n.type) })
+    return [...types].sort()
+  }, [rawNodesList])
+
+  const activeRelTypes  = filters?.relationshipTypes ?? []
+  const activeNodeTypes = filters?.nodeTypes ?? []
 
   const filteredEdges = useMemo<GraphEdgeResponse[]>(() => {
     if (!activeRelTypes.length) return rawEdgesList
     return rawEdgesList.filter((e) => activeRelTypes.includes(e.type))
   }, [rawEdgesList, activeRelTypes])
 
-  // When a filter is active, also hide nodes that have no visible edges
-  // (but the caller may further override localNodes if needed)
+  // Nodes visible after applying both node-type and rel-type filters
   const visibleNodeIds = useMemo(() => {
-    if (!activeRelTypes.length) return null // null = show all
-    const ids = new Set<string>()
-    filteredEdges.forEach((e) => { ids.add(e.source); ids.add(e.target) })
-    return ids
-  }, [filteredEdges, activeRelTypes])
+    const byRel = activeRelTypes.length
+      ? new Set(filteredEdges.flatMap((e) => [e.source, e.target]))
+      : null
+
+    if (!activeNodeTypes.length && !byRel) return null // show all
+
+    return new Set(
+      rawNodesList
+        .filter((n) => {
+          const passesType = !activeNodeTypes.length || activeNodeTypes.includes(n.type)
+          const passesRel  = !byRel || byRel.has(n.id)
+          return passesType && passesRel
+        })
+        .map((n) => n.id),
+    )
+  }, [filteredEdges, activeRelTypes, activeNodeTypes, rawNodesList])
 
   const nodes = useMemo<GraphNode[]>(() => {
     const list = visibleNodeIds
@@ -91,7 +117,7 @@ export function useInvestigationGraph(
   )
 
   return useMemo(
-    () => ({ nodes, edges, rawNodes, availableRelTypes, loading, error, refetch }),
-    [nodes, edges, rawNodes, availableRelTypes, loading, error, refetch],
+    () => ({ nodes, edges, rawNodes, availableRelTypes, availableNodeTypes, loading, error, refetch }),
+    [nodes, edges, rawNodes, availableRelTypes, availableNodeTypes, loading, error, refetch],
   )
 }
