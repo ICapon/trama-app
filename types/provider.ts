@@ -51,6 +51,35 @@ export interface DorkSearchConfig {
   delayMs?: number
 }
 
+// ─── Scrape Step Logs ────────────────────────────────────────────────────────
+
+export type ScrapeStepType = "navigate" | "api_capture" | "dom_scrape" | "login" | "result"
+
+export interface ScrapeStepExtractedData {
+  fields?:   Record<string, string | number | boolean | null>
+  tags?:     string[]
+  items?:    { count: number; samples?: string[] }
+  metrics?:  Record<string, number>
+  navigate?: { finalUrl: string; capturedEndpoints?: string[] }
+}
+
+export interface ScrapeStepLog {
+  id:                    string
+  providerSource:        string
+  entityId:              string | null
+  stepType:              ScrapeStepType
+  url:                   string | null
+  httpStatus:            number | null
+  durationMs:            number | null
+  success:               boolean
+  extractedData:         ScrapeStepExtractedData | null
+  nodesCreated:          number
+  relationshipsCreated:  number
+  nodeTypes:             string[] | null
+  errorMessage:          string | null
+  createdAt:             string
+}
+
 export interface ScrapeJob {
   id: string
   entityId: string | null
