@@ -510,6 +510,7 @@ export default function InvestigationPage({
                 sourceNode={rawNodes.get(selectedEdge.source)}
                 targetNode={rawNodes.get(selectedEdge.target)}
                 onClose={() => setSelectedEdge(null)}
+                onNodeClick={(node) => { setSelectedEdge(null); setSelectedNode(node) }}
               />
             ) : selectedNode ? (
               <NodeDetailPanel
@@ -519,6 +520,9 @@ export default function InvestigationPage({
                 onClose={() => setSelectedNode(null)}
                 onToggleBookmark={() => toggleBookmark(selectedNode.id)}
                 onNoteChange={(note) => setNote(selectedNode.id, note)}
+                connectedEdges={localEdges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)}
+                rawNodes={rawNodes}
+                onEdgeClick={(edge) => { setSelectedNode(null); setSelectedEdge(edge) }}
               />
             ) : (
               <div className="flex flex-col gap-5 p-4 overflow-y-auto">

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { GraphNodeResponse } from "@/lib/graph/types";
+import type { GraphEdge } from "reagraph";
+import type { GraphNodeResponse, GraphEdgeResponse } from "@/lib/graph/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/graph/colors";
 import { isUrl } from "@/components/graph/url-preview-dialog";
 import { SocialAnalysisPanel } from "@/components/graph/SocialAnalysisPanel";
@@ -90,6 +91,68 @@ function RiskBadge({ value }: { value: number }) {
   );
 }
 
+function ChevronRightIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
+interface EdgesListProps {
+  nodeId: string;
+  edges: GraphEdge[];
+  rawNodes?: Map<string, GraphNodeResponse>;
+  onEdgeClick?: (edge: GraphEdgeResponse) => void;
+}
+
+function EdgesList({ nodeId, edges, rawNodes, onEdgeClick }: EdgesListProps) {
+  return (
+    <div className="flex flex-col gap-1 px-3 py-3 overflow-y-auto">
+      {edges.map((edge) => {
+        const isOutgoing = edge.source === nodeId;
+        const otherId = isOutgoing ? edge.target : edge.source;
+        const otherNode = rawNodes?.get(otherId);
+        const edgeData = edge.data as GraphEdgeResponse | undefined;
+        const relType = edgeData?.type ?? edge.label ?? "—";
+        const otherDot = otherNode ? (CATEGORY_COLORS[otherNode.category] ?? "#71717a") : "#71717a";
+
+        return (
+          <button
+            key={edge.id}
+            onClick={() => edgeData && onEdgeClick?.(edgeData)}
+            disabled={!edgeData || !onEdgeClick}
+            className="flex items-center gap-2 w-full rounded-md border border-transparent px-2.5 py-2 text-left hover:border-zinc-200 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors disabled:cursor-default group"
+          >
+            {/* Direction arrow */}
+            <span className={`text-[10px] font-bold flex-shrink-0 w-4 text-center ${isOutgoing ? "text-sky-500" : "text-violet-500"}`}>
+              {isOutgoing ? "→" : "←"}
+            </span>
+
+            {/* Relation type */}
+            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 w-28 truncate flex-shrink-0">
+              {relType}
+            </span>
+
+            {/* Other node */}
+            <span className="flex items-center gap-1.5 flex-1 min-w-0">
+              <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: otherDot }} />
+              <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
+                {otherNode?.label ?? otherId.slice(0, 14) + "…"}
+              </span>
+            </span>
+
+            {/* Chevron */}
+            <span className="text-zinc-300 dark:text-zinc-600 group-hover:text-zinc-500 dark:group-hover:text-zinc-400 flex-shrink-0 transition-colors">
+              <ChevronRightIcon />
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 interface NodeDetailPanelProps {
   node: GraphNodeResponse;
   isBookmarked: boolean;
@@ -97,6 +160,9 @@ interface NodeDetailPanelProps {
   onClose: () => void;
   onToggleBookmark: () => void;
   onNoteChange: (note: string) => void;
+  connectedEdges?: GraphEdge[];
+  rawNodes?: Map<string, GraphNodeResponse>;
+  onEdgeClick?: (edge: GraphEdgeResponse) => void;
 }
 
 export function NodeDetailPanel({
@@ -106,9 +172,12 @@ export function NodeDetailPanel({
   onClose,
   onToggleBookmark,
   onNoteChange,
+  connectedEdges = [],
+  rawNodes,
+  onEdgeClick,
 }: NodeDetailPanelProps) {
   const [localNote, setLocalNote] = useState(note);
-  const [activeTab, setActiveTab] = useState<"props" | "analysis">("props");
+  const [activeTab, setActiveTab] = useState<"props" | "edges" | "analysis">("props");
   const isSocialProfile = node.type === "SocialProfile";
   const color = CATEGORY_COLORS[node.category] ?? "#71717a";
   const categoryLabel = CATEGORY_LABELS[node.category] ?? node.category;
@@ -161,23 +230,42 @@ export function NodeDetailPanel({
         </div>
       </div>
 
-      {/* Tabs — only visible for SocialProfile */}
-      {isSocialProfile && (
+      {/* Tabs — always visible when there are edges, analysis only for SocialProfile */}
+      {(connectedEdges.length > 0 || isSocialProfile) && (
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 px-4">
-          {(["props", "analysis"] as const).map((tab) => (
+          <button
+            onClick={() => setActiveTab("props")}
+            className={`pb-2 pt-1 mr-4 text-xs font-medium border-b-2 transition-colors ${activeTab === "props" ? "border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
+          >
+            Propiedades
+          </button>
+          {connectedEdges.length > 0 && (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-2 pt-1 mr-4 text-xs font-medium border-b-2 transition-colors ${
-                activeTab === tab
-                  ? "border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100"
-                  : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-              }`}
+              onClick={() => setActiveTab("edges")}
+              className={`pb-2 pt-1 mr-4 text-xs font-medium border-b-2 transition-colors ${activeTab === "edges" ? "border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
             >
-              {tab === "props" ? "Propiedades" : "Análisis"}
+              Edges <span className="ml-0.5 text-zinc-400 font-normal">({connectedEdges.length})</span>
             </button>
-          ))}
+          )}
+          {isSocialProfile && (
+            <button
+              onClick={() => setActiveTab("analysis")}
+              className={`pb-2 pt-1 mr-4 text-xs font-medium border-b-2 transition-colors ${activeTab === "analysis" ? "border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
+            >
+              Análisis
+            </button>
+          )}
         </div>
+      )}
+
+      {/* Edges tab */}
+      {activeTab === "edges" && connectedEdges.length > 0 && (
+        <EdgesList
+          nodeId={node.id}
+          edges={connectedEdges}
+          rawNodes={rawNodes}
+          onEdgeClick={onEdgeClick}
+        />
       )}
 
       {/* Analysis tab */}
