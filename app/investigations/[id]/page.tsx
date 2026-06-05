@@ -228,6 +228,9 @@ export default function InvestigationPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const [activeTool, setActiveTool] = useState<ActiveTool>(null)
   const [selectedNode, setSelectedNode] = useState<GraphNodeResponse | null>(null)
   const [localNodes, setLocalNodes] = useState<GraphNode[]>([])
@@ -290,6 +293,29 @@ export default function InvestigationPage({
       (n) => n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q)
     )
   }, [nodeSearch, rawNodes])
+
+  function startEditingTitle() {
+    if (!investigation) return
+    setTitleDraft(investigation.title)
+    setIsEditingTitle(true)
+    setTimeout(() => titleInputRef.current?.select(), 0)
+  }
+
+  async function handleSaveTitle() {
+    const trimmed = titleDraft.trim()
+    if (!trimmed || trimmed === investigation?.title) {
+      setIsEditingTitle(false)
+      return
+    }
+    try {
+      const { data: updated } = await investigationsApi.update(id, { title: trimmed })
+      setInvestigation(updated)
+    } catch (err) {
+      console.error("Failed to update title:", err)
+    } finally {
+      setIsEditingTitle(false)
+    }
+  }
 
   async function handleDeleteInvestigation() {
     try {
@@ -536,7 +562,8 @@ export default function InvestigationPage({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <header className="flex flex-shrink-0 items-center gap-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-2.5">
+      <header className="flex flex-shrink-0 flex-col border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+      <div className="flex items-center gap-3 px-4 py-2.5">
         <Link
           href="/"
           className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 shrink-0 transition-colors"
@@ -547,9 +574,32 @@ export default function InvestigationPage({
 
         <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-700 shrink-0" />
 
-        <h1 className="flex-1 min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {investigation.title}
-        </h1>
+        {isEditingTitle ? (
+          <input
+            ref={titleInputRef}
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={handleSaveTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.currentTarget.blur() }
+              if (e.key === "Escape") { setIsEditingTitle(false) }
+            }}
+            className="flex-1 min-w-0 text-sm font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent border-b border-zinc-400 dark:border-zinc-500 focus:outline-none focus:border-zinc-700 dark:focus:border-zinc-300 px-0.5"
+          />
+        ) : (
+          <button
+            onClick={startEditingTitle}
+            title="Edit title"
+            className="flex-1 min-w-0 text-left group flex items-center gap-1.5"
+          >
+            <h1 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              {investigation.title}
+            </h1>
+            <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 dark:text-zinc-500">
+              <PencilIcon />
+            </span>
+          </button>
+        )}
 
         <div className="hidden sm:flex items-center gap-2 shrink-0">
           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[investigation.status]}`}>
@@ -567,56 +617,6 @@ export default function InvestigationPage({
             {graphNodes.length} nodes · {graphEdges.length} edges
           </span>
         )}
-
-        {/* Saved views */}
-        {investigation && (
-          <GraphConfigPanel
-            investigationId={investigation.id}
-            currentFilters={graphFilters}
-            currentLayout={graphLayout}
-            activeConfigId={activeConfigId}
-            onApply={applyGraphConfig}
-            onReset={resetGraphView}
-          />
-        )}
-
-        {/* Relationship filter */}
-        <GraphFilterToolbar
-          filters={graphFilters}
-          availableRelTypes={availableRelTypes}
-          availableNodeTypes={availableNodeTypes}
-          onChange={handleFiltersChange}
-          loading={graphLoading}
-        />
-
-        {/* Layout toggle */}
-        <div className="hidden sm:flex items-center rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
-          <button
-            onClick={() => handleLayoutChange("force")}
-            title="Force layout"
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              graphLayout === "force"
-                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <LayoutForceIcon />
-            Force
-          </button>
-          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
-          <button
-            onClick={() => handleLayoutChange("radial")}
-            title="Radial layout"
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              graphLayout === "radial"
-                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <LayoutHierarchicalIcon />
-            Radial
-          </button>
-        </div>
 
         {isEditing ? (
           <button
@@ -664,6 +664,57 @@ export default function InvestigationPage({
             )}
           </div>
         )}
+      </div>
+
+      {/* ── Second row: filters + layout ──────────────────────────────────── */}
+      <div className="flex items-center gap-2 px-4 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60">
+        {investigation && (
+          <GraphConfigPanel
+            investigationId={investigation.id}
+            currentFilters={graphFilters}
+            currentLayout={graphLayout}
+            activeConfigId={activeConfigId}
+            onApply={applyGraphConfig}
+            onReset={resetGraphView}
+          />
+        )}
+        <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 shrink-0" />
+        <GraphFilterToolbar
+          filters={graphFilters}
+          availableRelTypes={availableRelTypes}
+          availableNodeTypes={availableNodeTypes}
+          onChange={handleFiltersChange}
+          loading={graphLoading}
+        />
+        <div className="ml-auto flex items-center rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
+          <button
+            onClick={() => handleLayoutChange("force")}
+            title="Force layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "force"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutForceIcon />
+            Force
+          </button>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+          <button
+            onClick={() => handleLayoutChange("radial")}
+            title="Radial layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "radial"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutHierarchicalIcon />
+            Radial
+          </button>
+        </div>
+      </div>
+
       </header>
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
@@ -839,6 +890,7 @@ export default function InvestigationPage({
 
         {/* Graph canvas */}
         <div className="relative flex-1 min-w-0">
+
           {graphLoading ? (
             <div className="flex flex-1 h-full items-center justify-center">
               <span className="text-sm text-zinc-400">Loading graph…</span>
@@ -927,10 +979,10 @@ export default function InvestigationPage({
 
         {/* Tools panel — edit mode only */}
         {isEditing && (
-          <aside className="flex w-40 flex-shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40">
+          <aside className="flex w-52 flex-shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40">
             <div className="flex-1 p-2">
               <p className="px-3 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-                Add
+                Tools
               </p>
               <div className="flex flex-col gap-0.5">
                 {TOOLS.filter((t) => t.id !== "delete").map((tool) => (
