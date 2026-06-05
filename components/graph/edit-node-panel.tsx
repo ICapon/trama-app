@@ -29,6 +29,15 @@ function PlusIcon() {
   );
 }
 
+function LinkIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
 function PlayIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
@@ -67,9 +76,10 @@ interface EditNodePanelProps {
   investigationId: string;
   onClose: () => void;
   onSave: (nodeId: string, properties: Record<string, unknown>) => Promise<void>;
+  onLinkNode?: () => void;
 }
 
-export function EditNodePanel({ node, investigationId, onClose, onSave }: EditNodePanelProps) {
+export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNode }: EditNodePanelProps) {
   const [entries, setEntries] = useState<PropEntry[]>(() => toEntries(node.properties));
   const [newKey, setNewKey] = useState("");
   const [saving, setSaving] = useState(false);
@@ -264,13 +274,24 @@ export function EditNodePanel({ node, investigationId, onClose, onSave }: EditNo
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0">
-        <button
-          onClick={() => setShowStartJob(true)}
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors"
-        >
-          <PlayIcon />
-          Start Job
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowStartJob(true)}
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors"
+          >
+            <PlayIcon />
+            Start Job
+          </button>
+          {onLinkNode && (
+            <button
+              onClick={onLinkNode}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors"
+            >
+              <LinkIcon />
+              Link Node
+            </button>
+          )}
+        </div>
         <div className="flex gap-2">
           <button
             onClick={onClose}

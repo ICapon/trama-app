@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { investigationsApi } from "@/lib/api/investigations"
 import { NewInvestigationDialog } from "@/components/investigations/new-investigation-dialog"
 import { useToast, Toaster } from "@/components/ui/toast"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
+import type { TramaExportBundle } from "@/types/export-bundle"
 
 const STATUS_LABELS: Record<InvestigationStatus, string> = {
   open: "Open",
@@ -131,7 +133,10 @@ export default function InvestigationsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDialog, setShowDialog] = useState(false)
+  const [importing, setImporting] = useState(false)
   const { toasts, dismiss, toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
     investigationsApi
@@ -145,6 +150,30 @@ export default function InvestigationsPage() {
     setInvestigations((prev) => [investigation, ...prev])
     setShowDialog(false)
     toast.success("Investigation created successfully")
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ""
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const bundle: TramaExportBundle = JSON.parse(text)
+      const res = await fetch("/api/investigations/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bundle),
+      })
+      if (!res.ok) throw new Error(`Import failed: ${res.status}`)
+      const created: Investigation = await res.json()
+      toast.success(`"${created.title}" imported successfully`)
+      router.push(`/investigations/${created.id}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed")
+    } finally {
+      setImporting(false)
+    }
   }
 
   return (
@@ -165,12 +194,28 @@ export default function InvestigationsPage() {
             <p className="text-xs text-zinc-400 mt-0.5">{investigations.length} total</p>
           )}
         </div>
-        <button
-          onClick={() => setShowDialog(true)}
-          className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
-        >
-          + New
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.trama.json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors disabled:opacity-50"
+          >
+            {importing ? "Importing…" : "Import"}
+          </button>
+          <button
+            onClick={() => setShowDialog(true)}
+            className="rounded-md bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+          >
+            + New
+          </button>
+        </div>
       </header>
 
       {/* Content */}

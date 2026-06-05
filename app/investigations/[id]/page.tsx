@@ -1,17 +1,18 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { GraphNode, GraphEdge } from "reagraph"
 import { investigationsApi } from "@/lib/api/investigations"
 import { TramaGraph } from "@/components/graph/graph-canvas"
-import type { GraphLayout } from "@/components/graph/graph-canvas"
+import type { GraphLayout, TramaGraphRef } from "@/components/graph/graph-canvas"
 import { NodeDetailPanel } from "@/components/graph/node-detail-panel"
 import { EdgeDetailPanel } from "@/components/graph/edge-detail-panel"
 import { AddNodeDialog } from "@/components/graph/add-node-dialog"
 import { AddEdgeDialog } from "@/components/graph/add-edge-dialog"
 import { EditNodePanel } from "@/components/graph/edit-node-panel"
+import { LinkNodeDialog, type LinkNodeResult } from "@/components/graph/link-node-dialog"
 import { useInvestigationGraph, type GraphFilters } from "@/hooks/use-investigation-graph"
 import { GraphFilterToolbar } from "@/components/graph/graph-filter-toolbar"
 import { GraphConfigPanel } from "@/components/graph/graph-config-panel"
@@ -21,6 +22,7 @@ import { toReagraphNode, toReagraphEdge } from "@/lib/graph/adapters"
 import { graphApi } from "@/lib/api/graph"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
 import type { GraphEdgeResponse, GraphNodeResponse, TramaNodeType } from "@/lib/graph/types"
+import type { TramaExportBundle } from "@/types/export-bundle"
 
 // ─── Display maps ─────────────────────────────────────────────────────────────
 
@@ -134,14 +136,47 @@ function Trash2Icon() {
   )
 }
 
+function DownloadIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+  )
+}
+
+function DotsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
+    </svg>
+  )
+}
+
+function SelectionIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z" /><path d="M7 5h10M5 7v10M7 19h10M19 7v10" strokeDasharray="2 2"/>
+    </svg>
+  )
+}
+
 // ─── Tool panel ───────────────────────────────────────────────────────────────
 
-type ActiveTool = "node" | "edge" | "delete" | null
+type ActiveTool = "node" | "edge" | "delete" | "select" | null
 
 const TOOLS = [
-  { id: "node"   as const, icon: <PlusCircleIcon />, label: "Node",     hint: "Click on the canvas to add a node" },
-  { id: "edge"   as const, icon: <ArrowsIcon />,     label: "Relation", hint: "Connect two existing nodes" },
-  { id: "delete" as const, icon: <Trash2Icon />,     label: "Delete Node", hint: "Click a node to delete it" },
+  { id: "node"   as const, icon: <PlusCircleIcon />,  label: "Node",     hint: "Click on the canvas to add a node" },
+  { id: "edge"   as const, icon: <ArrowsIcon />,      label: "Relation", hint: "Connect two existing nodes" },
+  { id: "select" as const, icon: <SelectionIcon />,   label: "Select",   hint: "Drag to select multiple nodes, then drag any selected node to move all" },
+  { id: "delete" as const, icon: <Trash2Icon />,      label: "Delete Node", hint: "Click a node to delete it" },
 ]
 
 interface ToolButtonProps {
@@ -199,6 +234,24 @@ export default function InvestigationPage({
   const [localEdges, setLocalEdges] = useState<GraphEdge[]>([])
   const [showAddNodeDialog, setShowAddNodeDialog] = useState(false)
   const [pendingClickPosition, setPendingClickPosition] = useState<{ x: number; y: number; z: number } | null>(null)
+  const [showActionsMenu, setShowActionsMenu] = useState(false)
+  const [showLinkNodeDialog, setShowLinkNodeDialog] = useState(false)
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
+  const [nodeSearch, setNodeSearch] = useState("")
+  const [focusNodeId, setFocusNodeId] = useState<string | undefined>()
+  const actionsMenuRef = useRef<HTMLDivElement>(null)
+  const tramaGraphRef = useRef<TramaGraphRef>(null)
+
+  useEffect(() => {
+    if (!showActionsMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setShowActionsMenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [showActionsMenu])
   const [graphLayout, setGraphLayout] = useState<GraphLayout>("force")
   const [selectedEdge, setSelectedEdge] = useState<GraphEdgeResponse | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -229,6 +282,14 @@ export default function InvestigationPage({
 
   useEffect(() => { setLocalNodes(graphNodes) }, [graphNodes])
   useEffect(() => { setLocalEdges(graphEdges) }, [graphEdges])
+
+  const searchResults = useMemo(() => {
+    const q = nodeSearch.trim().toLowerCase()
+    if (!q) return []
+    return [...rawNodes.values()].filter(
+      (n) => n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q)
+    )
+  }, [nodeSearch, rawNodes])
 
   async function handleDeleteInvestigation() {
     try {
@@ -272,11 +333,13 @@ export default function InvestigationPage({
     setIsEditing(false)
     setActiveTool(null)
     setEditingNode(null)
+    setSelectedNodeIds([])
     resetEdgeState()
   }
 
   function toggleTool(tool: Exclude<ActiveTool, null>) {
     setSelectedEdge(null)
+    if (tool !== "select") setSelectedNodeIds([])
     setActiveTool((prev) => {
       if (prev !== "edge" || tool !== "edge") resetEdgeState()
       return prev === tool ? null : tool
@@ -299,10 +362,12 @@ export default function InvestigationPage({
       return
     }
     setSelectedEdge(null)
+    setSelectedNodeIds([])
     if (isEditing) {
       setEditingNode((prev) => (prev?.id === node.id ? null : node))
     } else {
       setSelectedNode((prev) => (prev?.id === node.id ? null : node))
+      setFocusNodeId(node.id)
     }
   }
 
@@ -322,6 +387,41 @@ export default function InvestigationPage({
       setActiveTool(null)
       refetchGraph()
     }
+  }
+
+  function handleExport() {
+    if (!investigation) return
+    const bundle: TramaExportBundle = {
+      version: "1",
+      exportedAt: new Date().toISOString(),
+      investigation: {
+        title: investigation.title,
+        description: investigation.description ?? null,
+        status: investigation.status,
+        priority: investigation.priority,
+        hypothesis: investigation.hypothesis ?? null,
+        tags: investigation.tags ?? [],
+        viewState: viewState ?? null,
+        targets: (investigation.targets ?? []).map((t) => ({ nodeId: t.nodeId, nodeLabel: t.nodeLabel, nodeType: t.nodeType })),
+      },
+      graph: {
+        nodes: localNodes.map((n) => {
+          const data = (n as any).data
+          return { id: n.id, type: data?.type ?? "", label: n.label ?? "", properties: data?.properties ?? {} }
+        }),
+        edges: localEdges.map((e) => {
+          const data = (e as any).data
+          return { source: e.source, target: e.target, type: data?.type ?? "", properties: data?.properties }
+        }),
+      },
+    }
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${investigation.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.trama.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function handleDeleteNode(nodeId: string) {
@@ -356,10 +456,31 @@ export default function InvestigationPage({
   }
 
   function handleCanvasClick(pos: { x: number; y: number; z: number }) {
+    setSelectedNodeIds([])
     if (activeTool === "node") {
       setPendingClickPosition(pos)
       setShowAddNodeDialog(true)
     }
+  }
+
+  async function handleLinkNode(result: LinkNodeResult) {
+    if (!editingNode) return
+    const res = await fetch(`/api/graph/node/${editingNode.id}/linked-node`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(result),
+    })
+    if (!res.ok) throw new Error(`Failed to create linked node: ${res.status}`)
+    const { node: newNode, edge: newEdge } = await res.json()
+    const reagraphNode = toReagraphNode(newNode)
+    const anchorPos = tramaGraphRef.current?.getNodePosition(editingNode.id)
+    if (anchorPos) {
+      reagraphNode.fx = anchorPos.x + 80
+      reagraphNode.fy = anchorPos.y + 80
+      reagraphNode.fz = anchorPos.z
+    }
+    setLocalNodes((prev) => [...prev, reagraphNode])
+    setLocalEdges((prev) => [...prev, toReagraphEdge(newEdge)])
   }
 
   async function handleSaveNodeProperties(nodeId: string, properties: Record<string, unknown>) {
@@ -506,21 +627,41 @@ export default function InvestigationPage({
             Done
           </button>
         ) : (
-          <div className="flex items-center gap-2 shrink-0">
+          <div ref={actionsMenuRef} className="relative shrink-0">
             <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 rounded-md border border-red-200 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              onClick={() => setShowActionsMenu((v) => !v)}
+              className="flex items-center justify-center w-7 h-7 rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+              title="Actions"
             >
-              <Trash2Icon />
-              Delete
+              <DotsIcon />
             </button>
-            <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-            >
-              <PencilIcon />
-              Edit
-            </button>
+
+            {showActionsMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1 overflow-hidden">
+                <button
+                  onClick={() => { setIsEditing(true); setShowActionsMenu(false) }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  <PencilIcon />
+                  Edit graph
+                </button>
+                <button
+                  onClick={() => { handleExport(); setShowActionsMenu(false) }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  <DownloadIcon />
+                  Export
+                </button>
+                <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+                <button
+                  onClick={() => { setShowDeleteConfirm(true); setShowActionsMenu(false) }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Trash2Icon />
+                  Delete investigation
+                </button>
+              </div>
+            )}
           </div>
         )}
       </header>
@@ -531,7 +672,60 @@ export default function InvestigationPage({
         {/* Left panel — metadata / node detail */}
         {!isEditing && (
           <aside className="w-72 flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            {selectedEdge ? (
+
+            {/* Search bar */}
+            <div className="flex-shrink-0 px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/80">
+              <div className="relative flex items-center">
+                <span className="absolute left-2.5 text-zinc-400 pointer-events-none">
+                  <SearchIcon />
+                </span>
+                <input
+                  type="text"
+                  value={nodeSearch}
+                  onChange={(e) => { setNodeSearch(e.target.value); setSelectedNode(null); setSelectedEdge(null) }}
+                  placeholder="Search nodes…"
+                  className="w-full rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 pl-7 pr-7 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 transition-colors"
+                />
+                {nodeSearch && (
+                  <button
+                    onClick={() => setNodeSearch("")}
+                    className="absolute right-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Search results */}
+            {nodeSearch.trim() ? (
+              <div className="flex flex-col flex-1 overflow-y-auto">
+                {searchResults.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-zinc-400 text-center">No nodes found</p>
+                ) : (
+                  <div className="flex flex-col gap-1 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                      {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+                    </p>
+                    {searchResults.map((node) => (
+                      <button
+                        key={node.id}
+                        onClick={() => { setSelectedNode(node); setFocusNodeId(node.id); setNodeSearch("") }}
+                        className="flex items-center gap-2 w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2 text-left transition-colors hover:border-zinc-400 dark:hover:border-zinc-600"
+                      >
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold shrink-0 ${NODE_TYPE_STYLES[node.type] ?? "bg-zinc-100 text-zinc-500"}`}>
+                          {node.type}
+                        </span>
+                        <span className="text-xs truncate text-zinc-700 dark:text-zinc-300">
+                          {node.label}
+                        </span>
+                        <span className="ml-auto shrink-0 text-[10px] text-zinc-400">→</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : selectedEdge ? (
               <EdgeDetailPanel
                 edge={selectedEdge}
                 sourceNode={rawNodes.get(selectedEdge.source)}
@@ -611,7 +805,7 @@ export default function InvestigationPage({
                         return (
                           <button
                             key={target.nodeId}
-                            onClick={() => node && setSelectedNode(node)}
+                            onClick={() => { if (node) { setSelectedNode(node); setFocusNodeId(node.id) } }}
                             disabled={!node}
                             title={node ? "Ver nodo" : "Nodo no visible con el depth actual"}
                             className="flex items-center gap-2 w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2 text-left transition-colors hover:border-zinc-400 dark:hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -651,6 +845,7 @@ export default function InvestigationPage({
             </div>
           ) : (
             <TramaGraph
+              ref={tramaGraphRef}
               nodes={localNodes}
               edges={localEdges}
               readonly={!isEditing}
@@ -660,7 +855,11 @@ export default function InvestigationPage({
               onNodeClick={handleNodeClick}
               onEdgeClick={handleEdgeClick}
               onPositionsChange={updatePinnedPositions}
-              onCanvasClick={isEditing ? handleCanvasClick : undefined}
+              onCanvasClick={isEditing && activeTool !== "select" ? handleCanvasClick : () => { setSelectedNodeIds([]); setSelectedNode(null); setSelectedEdge(null) }}
+              focusNodeId={focusNodeId}
+              lassoActive={isEditing && activeTool === "select"}
+              selectedNodeIds={selectedNodeIds}
+              onLassoEnd={setSelectedNodeIds}
             />
           )}
 
@@ -670,6 +869,15 @@ export default function InvestigationPage({
               investigationId={id}
               onClose={() => setEditingNode(null)}
               onSave={handleSaveNodeProperties}
+              onLinkNode={() => setShowLinkNodeDialog(true)}
+            />
+          )}
+
+          {showLinkNodeDialog && editingNode && (
+            <LinkNodeDialog
+              anchorNode={editingNode}
+              onClose={() => setShowLinkNodeDialog(false)}
+              onAdd={handleLinkNode}
             />
           )}
 
@@ -709,7 +917,9 @@ export default function InvestigationPage({
                   ? edgeFromNode
                     ? `"${edgeFromNode.label}" selected — now click the target node`
                     : "Step 1: Click the source node"
-                  : activeToolData.hint}
+                  : activeTool === "select" && selectedNodeIds.length > 0
+                    ? `${selectedNodeIds.length} nodes selected — drag any to move all`
+                    : activeToolData.hint}
               </span>
             </div>
           )}
