@@ -77,9 +77,10 @@ interface EditNodePanelProps {
   onClose: () => void;
   onSave: (nodeId: string, properties: Record<string, unknown>) => Promise<void>;
   onLinkNode?: () => void;
+  onJobComplete?: () => void;
 }
 
-export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNode }: EditNodePanelProps) {
+export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNode, onJobComplete }: EditNodePanelProps) {
   const [entries, setEntries] = useState<PropEntry[]>(() => toEntries(node.properties));
   const [newKey, setNewKey] = useState("");
   const [saving, setSaving] = useState(false);
@@ -314,6 +315,7 @@ export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNo
           node={node}
           investigationId={investigationId}
           onClose={() => setShowStartJob(false)}
+          onSuccess={() => { setShowStartJob(false); onJobComplete?.() }}
         />
       )}
     </div>

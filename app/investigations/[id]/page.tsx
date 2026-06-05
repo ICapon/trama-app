@@ -283,7 +283,60 @@ export default function InvestigationPage({
     if (saved) setGraphLayout(saved)
   }, [investigation])
 
-  useEffect(() => { setLocalNodes(graphNodes) }, [graphNodes])
+  const knownNodeIdsRef = useRef<Set<string>>(new Set())
+  const initialLoadDoneRef = useRef(false)
+
+  useEffect(() => {
+    if (!graphNodes.length) return
+
+    if (!initialLoadDoneRef.current) {
+      // First load — just sync, no positioning needed
+      initialLoadDoneRef.current = true
+      knownNodeIdsRef.current = new Set(graphNodes.map((n) => n.id))
+      setLocalNodes(graphNodes)
+      return
+    }
+
+    const newNodes = graphNodes.filter((n) => !knownNodeIdsRef.current.has(n.id))
+    knownNodeIdsRef.current = new Set(graphNodes.map((n) => n.id))
+
+    if (newNodes.length === 0) {
+      setLocalNodes(graphNodes)
+      return
+    }
+
+    // Get root position from the first investigation target
+    const rootId = investigation?.targets?.[0]?.nodeId
+    const rootPos = rootId ? (tramaGraphRef.current?.getNodePosition(rootId) ?? null) : null
+    const cx = rootPos?.x ?? 0
+    const cy = rootPos?.y ?? 0
+    const cz = rootPos?.z ?? 0
+
+    // Distribute new nodes in concentric rings around root
+    const INNER_RADIUS = 150
+    const OUTER_RADIUS = 280
+    const MAX_INNER = 8
+    const newNodeIdSet = new Set(newNodes.map((n) => n.id))
+
+    const positionedNew = newNodes.map((node, i) => {
+      const ring = i < MAX_INNER ? 0 : 1
+      const countInRing = ring === 0 ? Math.min(newNodes.length, MAX_INNER) : newNodes.length - MAX_INNER
+      const indexInRing = ring === 0 ? i : i - MAX_INNER
+      const radius = ring === 0 ? INNER_RADIUS : OUTER_RADIUS
+      const angle = (2 * Math.PI * indexInRing) / countInRing
+      return {
+        ...node,
+        fx: cx + radius * Math.cos(angle),
+        fy: cy + radius * Math.sin(angle),
+        fz: cz,
+      }
+    })
+
+    setLocalNodes([
+      ...graphNodes.filter((n) => !newNodeIdSet.has(n.id)),
+      ...positionedNew,
+    ])
+  }, [graphNodes])
   useEffect(() => { setLocalEdges(graphEdges) }, [graphEdges])
 
   const searchResults = useMemo(() => {
@@ -922,6 +975,7 @@ export default function InvestigationPage({
               onClose={() => setEditingNode(null)}
               onSave={handleSaveNodeProperties}
               onLinkNode={() => setShowLinkNodeDialog(true)}
+              onJobComplete={refetchGraph}
             />
           )}
 
