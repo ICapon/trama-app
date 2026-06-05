@@ -39,7 +39,7 @@ export interface GraphEdgeResponse {
   id: string
   source: string
   target: string
-  type: string
+  type?: string
   label?: string
   properties?: Record<string, unknown>
 }

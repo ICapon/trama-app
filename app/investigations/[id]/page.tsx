@@ -198,6 +198,7 @@ export default function InvestigationPage({
   const [localNodes, setLocalNodes] = useState<GraphNode[]>([])
   const [localEdges, setLocalEdges] = useState<GraphEdge[]>([])
   const [showAddNodeDialog, setShowAddNodeDialog] = useState(false)
+  const [pendingClickPosition, setPendingClickPosition] = useState<{ x: number; y: number; z: number } | null>(null)
   const [graphLayout, setGraphLayout] = useState<GraphLayout>("force")
   const [selectedEdge, setSelectedEdge] = useState<GraphEdgeResponse | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -275,6 +276,7 @@ export default function InvestigationPage({
   }
 
   function toggleTool(tool: Exclude<ActiveTool, null>) {
+    setSelectedEdge(null)
     setActiveTool((prev) => {
       if (prev !== "edge" || tool !== "edge") resetEdgeState()
       return prev === tool ? null : tool
@@ -334,12 +336,30 @@ export default function InvestigationPage({
   }
 
   function handleEdgeClick(edge: GraphEdgeResponse) {
+    if (activeTool === "delete") {
+      handleDeleteEdge(edge.id)
+      return
+    }
     setSelectedNode(null)
+    setEditingNode(null)
     setSelectedEdge((prev) => (prev?.id === edge.id ? null : edge))
   }
 
-  function handleCanvasClick() {
-    if (activeTool === "node") setShowAddNodeDialog(true)
+  async function handleDeleteEdge(edgeId: string) {
+    try {
+      await graphApi.deleteRelationship(edgeId)
+      setLocalEdges((prev) => prev.filter((e) => e.id !== edgeId))
+      if (selectedEdge?.id === edgeId) setSelectedEdge(null)
+    } catch (err) {
+      console.error("Failed to delete relationship:", err)
+    }
+  }
+
+  function handleCanvasClick(pos: { x: number; y: number; z: number }) {
+    if (activeTool === "node") {
+      setPendingClickPosition(pos)
+      setShowAddNodeDialog(true)
+    }
   }
 
   async function handleSaveNodeProperties(nodeId: string, properties: Record<string, unknown>) {
@@ -351,7 +371,14 @@ export default function InvestigationPage({
   async function handleAddNode(label: string, type: TramaNodeType) {
     try {
       const { data: newNode } = await graphApi.createNode({ type, label })
-      setLocalNodes((prev) => [...prev, toReagraphNode(newNode)])
+      const reagraphNode = toReagraphNode(newNode)
+      if (pendingClickPosition) {
+        reagraphNode.fx = pendingClickPosition.x
+        reagraphNode.fy = pendingClickPosition.y
+        reagraphNode.fz = pendingClickPosition.z
+        setPendingClickPosition(null)
+      }
+      setLocalNodes((prev) => [...prev, reagraphNode])
       if (investigation) {
         await investigationsApi.addTarget(investigation.id, {
           nodeId: newNode.id,
@@ -644,6 +671,19 @@ export default function InvestigationPage({
               onClose={() => setEditingNode(null)}
               onSave={handleSaveNodeProperties}
             />
+          )}
+
+          {isEditing && selectedEdge && !activeTool && (
+            <div className="absolute left-4 top-4 z-20 w-72 flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl max-h-[calc(100%-2rem)] overflow-hidden">
+              <EdgeDetailPanel
+                edge={selectedEdge}
+                sourceNode={rawNodes.get(selectedEdge.source)}
+                targetNode={rawNodes.get(selectedEdge.target)}
+                onClose={() => setSelectedEdge(null)}
+                onNodeClick={(node) => { setSelectedEdge(null); setEditingNode(node) }}
+                onDelete={() => handleDeleteEdge(selectedEdge.id)}
+              />
+            </div>
           )}
 
           <AddNodeDialog

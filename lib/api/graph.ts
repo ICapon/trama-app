@@ -35,6 +35,9 @@ export const graphApi = {
   createRelationship(body: { fromId: string; toId: string; type: string; properties?: Record<string, unknown> }) {
     return api.post<GraphEdgeResponse>(`${BASE}/relationship`, body)
   },
+  deleteRelationship(id: string) {
+    return api.delete(`${BASE}/relationship/${id}`)
+  },
   getSocialAnalysis(id: string) {
     return api.get<SocialAnalysis>(`${BASE}/node/${id}/social-analysis`)
   },

@@ -11,6 +11,15 @@ function XIcon() {
   );
 }
 
+function Trash2Icon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function ArrowRightIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -66,9 +75,10 @@ interface EdgeDetailPanelProps {
   targetNode?: GraphNodeResponse;
   onClose: () => void;
   onNodeClick?: (node: GraphNodeResponse) => void;
+  onDelete?: () => void;
 }
 
-export function EdgeDetailPanel({ edge, sourceNode, targetNode, onClose, onNodeClick }: EdgeDetailPanelProps) {
+export function EdgeDetailPanel({ edge, sourceNode, targetNode, onClose, onNodeClick, onDelete }: EdgeDetailPanelProps) {
   const extraProps = edge.properties
     ? Object.entries(edge.properties).filter(([, v]) => v !== null && v !== undefined && v !== "")
     : [];
@@ -86,12 +96,23 @@ export function EdgeDetailPanel({ edge, sourceNode, targetNode, onClose, onNodeC
             <p className="text-xs text-zinc-400 font-mono mt-0.5">{edge.type}</p>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-        >
-          <XIcon />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              title="Eliminar relación"
+              className="p-1.5 rounded-md text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Trash2Icon />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <XIcon />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 p-4">

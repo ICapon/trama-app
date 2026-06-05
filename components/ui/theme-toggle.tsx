@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAppTheme } from "@/hooks/use-theme";
 
 function SunIcon() {
@@ -43,6 +44,23 @@ function MoonIcon() {
 
 export function ThemeToggle() {
   const { resolvedTheme, toggleTheme } = useAppTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <button
+        className="rounded-md p-2 text-sm font-medium text-foreground transition-colors hover:bg-black/[.05] dark:hover:bg-white/[.1]"
+        aria-label="Toggle theme"
+        disabled
+      >
+        <MoonIcon />
+      </button>
+    );
+  }
 
   return (
     <button
