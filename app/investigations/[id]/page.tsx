@@ -19,6 +19,7 @@ import { GraphConfigPanel } from "@/components/graph/graph-config-panel"
 import type { GraphConfig } from "@/types/graph-config"
 import { useViewState } from "@/hooks/use-view-state"
 import { toReagraphNode, toReagraphEdge } from "@/lib/graph/adapters"
+import { computeAnchorSubgraph } from "@/lib/graph/anchor"
 import { graphApi } from "@/lib/api/graph"
 import type { Investigation, InvestigationStatus, InvestigationPriority } from "@/types/investigation"
 import type { GraphEdgeResponse, GraphNodeResponse, TramaNodeType } from "@/lib/graph/types"
@@ -242,6 +243,7 @@ export default function InvestigationPage({
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [nodeSearch, setNodeSearch] = useState("")
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>()
+  const [anchoredNodeId, setAnchoredNodeId] = useState<string | null>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
   const tramaGraphRef = useRef<TramaGraphRef>(null)
 
@@ -347,6 +349,15 @@ export default function InvestigationPage({
     )
   }, [nodeSearch, rawNodes])
 
+  const { nodes: displayNodes, edges: displayEdges } = useMemo(
+    () => anchoredNodeId
+      ? computeAnchorSubgraph(anchoredNodeId, localNodes, localEdges)
+      : { nodes: localNodes, edges: localEdges },
+    [anchoredNodeId, localNodes, localEdges],
+  )
+
+  const anchoredNodeLabel = anchoredNodeId ? rawNodes.get(anchoredNodeId)?.label : undefined
+
   function startEditingTitle() {
     if (!investigation) return
     setTitleDraft(investigation.title)
@@ -400,6 +411,9 @@ export default function InvestigationPage({
     setGraphFilters(filters)
     setActiveConfigId(null)
   }
+
+  function handleAnchorNode(id: string) { setAnchoredNodeId(id) }
+  function handleUnanchorNode() { setAnchoredNodeId(null) }
 
   function handleLayoutChange(layout: "force" | "radial") {
     setGraphLayout(layout)
@@ -738,6 +752,9 @@ export default function InvestigationPage({
           availableNodeTypes={availableNodeTypes}
           onChange={handleFiltersChange}
           loading={graphLoading}
+          anchoredNodeId={anchoredNodeId}
+          anchoredNodeLabel={anchoredNodeLabel}
+          onUnanchor={handleUnanchorNode}
         />
         <div className="ml-auto flex items-center rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
           <button
@@ -848,6 +865,9 @@ export default function InvestigationPage({
                 connectedEdges={localEdges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)}
                 rawNodes={rawNodes}
                 onEdgeClick={(edge) => { setSelectedNode(null); setSelectedEdge(edge) }}
+                anchoredNodeId={anchoredNodeId}
+                onAnchor={handleAnchorNode}
+                onUnanchor={handleUnanchorNode}
               />
             ) : (
               <div className="flex flex-col gap-5 p-4 overflow-y-auto">
@@ -951,8 +971,8 @@ export default function InvestigationPage({
           ) : (
             <TramaGraph
               ref={tramaGraphRef}
-              nodes={localNodes}
-              edges={localEdges}
+              nodes={displayNodes}
+              edges={displayEdges}
               readonly={!isEditing}
               selectedNodeId={activeTool === "edge" ? edgeFromNode?.id : isEditing ? editingNode?.id : selectedNode?.id}
               layout={graphLayout}
@@ -976,6 +996,9 @@ export default function InvestigationPage({
               onSave={handleSaveNodeProperties}
               onLinkNode={() => setShowLinkNodeDialog(true)}
               onJobComplete={refetchGraph}
+              anchoredNodeId={anchoredNodeId}
+              onAnchor={handleAnchorNode}
+              onUnanchor={handleUnanchorNode}
             />
           )}
 

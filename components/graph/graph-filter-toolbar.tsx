@@ -3,6 +3,15 @@
 import { useEffect, useRef, useState } from "react"
 import type { GraphFilters } from "@/hooks/use-investigation-graph"
 
+function PinIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
+      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+      <line x1="12" y1="17" x2="12" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
 function FilterIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -34,9 +43,12 @@ interface Props {
   availableNodeTypes: string[]
   onChange: (filters: GraphFilters) => void
   loading?: boolean
+  anchoredNodeId?: string | null
+  anchoredNodeLabel?: string
+  onUnanchor?: () => void
 }
 
-export function GraphFilterToolbar({ filters, availableRelTypes, availableNodeTypes, onChange, loading }: Props) {
+export function GraphFilterToolbar({ filters, availableRelTypes, availableNodeTypes, onChange, loading, anchoredNodeId, anchoredNodeLabel, onUnanchor }: Props) {
   const [openRel, setOpenRel]   = useState(false)
   const [openNode, setOpenNode] = useState(false)
   const [searchRel, setSearchRel]   = useState("")
@@ -98,6 +110,21 @@ export function GraphFilterToolbar({ filters, availableRelTypes, availableNodeTy
 
   return (
     <div className="flex items-center gap-2 shrink-0">
+
+      {/* Anchor chip */}
+      {anchoredNodeId && (
+        <div className="flex items-center gap-1.5 rounded-md border border-sky-400 dark:border-sky-600 bg-sky-50 dark:bg-sky-500/10 px-2.5 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400">
+          <PinIcon />
+          <span className="max-w-[120px] truncate">{anchoredNodeLabel ?? "Nodo anclado"}</span>
+          <button
+            onClick={onUnanchor}
+            title="Quitar ancla"
+            className="ml-0.5 text-sky-400 hover:text-sky-700 dark:hover:text-sky-200 transition-colors"
+          >
+            <XIcon />
+          </button>
+        </div>
+      )}
 
       {/* Depth */}
       <div className="flex items-center gap-1.5">

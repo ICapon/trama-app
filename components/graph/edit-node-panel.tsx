@@ -54,6 +54,15 @@ function TrashIcon() {
   );
 }
 
+function PinIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="17" x2="12" y2="22" />
+      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+    </svg>
+  );
+}
+
 function CameraIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -78,9 +87,13 @@ interface EditNodePanelProps {
   onSave: (nodeId: string, properties: Record<string, unknown>) => Promise<void>;
   onLinkNode?: () => void;
   onJobComplete?: () => void;
+  anchoredNodeId?: string | null;
+  onAnchor?: (id: string) => void;
+  onUnanchor?: () => void;
 }
 
-export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNode, onJobComplete }: EditNodePanelProps) {
+export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNode, onJobComplete, anchoredNodeId, onAnchor, onUnanchor }: EditNodePanelProps) {
+  const isAnchored = anchoredNodeId === node.id;
   const [entries, setEntries] = useState<PropEntry[]>(() => toEntries(node.properties));
   const [newKey, setNewKey] = useState("");
   const [saving, setSaving] = useState(false);
@@ -156,12 +169,27 @@ export function EditNodePanel({ node, investigationId, onClose, onSave, onLinkNo
           <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{node.label}</p>
           <p className="text-xs text-zinc-400 mt-0.5">{node.type}</p>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-        >
-          <XIcon />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {(onAnchor || onUnanchor) && (
+            <button
+              onClick={() => isAnchored ? onUnanchor?.() : onAnchor?.(node.id)}
+              title={isAnchored ? "Quitar ancla" : "Anclar nodo"}
+              className={`p-1.5 rounded-md transition-colors ${
+                isAnchored
+                  ? "text-sky-500 bg-sky-500/10"
+                  : "text-zinc-400 hover:text-sky-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <PinIcon filled={isAnchored} />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+          >
+            <XIcon />
+          </button>
+        </div>
       </div>
 
       {/* Image upload */}
