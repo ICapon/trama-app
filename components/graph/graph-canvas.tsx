@@ -11,7 +11,7 @@ import type { PinnedPosition } from "@/types/view-state";
 
 type PinnedPositions = Record<string, PinnedPosition>;
 
-export type GraphLayout = "force" | "radial";
+export type GraphLayout = "force" | "radial" | "tree-td" | "tree-lr" | "circular";
 
 export type TramaGraphRef = {
   getNodePosition: (id: string) => { x: number; y: number; z: number } | null;
@@ -59,9 +59,12 @@ interface TramaGraphProps {
   lassoActive?: boolean;
 }
 
-const LAYOUT_MAP: Record<GraphLayout, "forceDirected2d" | "radialOut2d"> = {
+const LAYOUT_MAP: Record<GraphLayout, string> = {
   force: "forceDirected2d",
   radial: "radialOut2d",
+  "tree-td": "treeTd2d",
+  "tree-lr": "treeLr2d",
+  circular: "circular2d",
 };
 
 export const TramaGraph = forwardRef<TramaGraphRef, TramaGraphProps>(function TramaGraph({
@@ -160,7 +163,7 @@ export const TramaGraph = forwardRef<TramaGraphRef, TramaGraphProps>(function Tr
 
   const positionedNodes = nodes.map((node) => ({
     ...node,
-    ...(layout === "force" ? pinnedPositions[node.id] : undefined),
+    ...(layout === "force" || layout === "tree-td" || layout === "tree-lr" ? pinnedPositions[node.id] : undefined),
     icon: node.icon ? (circularIcons[node.icon] ?? node.icon) : undefined,
   }));
 
@@ -383,6 +386,7 @@ export const TramaGraph = forwardRef<TramaGraphRef, TramaGraphProps>(function Tr
         <div
           className="absolute inset-0 z-10 cursor-crosshair"
           onMouseDown={handleLassoMouseDown}
+          onClick={(e) => e.stopPropagation()}
         >
           {lassoRect && (
             <div

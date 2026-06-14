@@ -129,6 +129,44 @@ function LayoutHierarchicalIcon() {
   )
 }
 
+function LayoutTreeTdIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="2" width="6" height="4" rx="1" />
+      <rect x="1" y="15" width="5" height="4" rx="1" />
+      <rect x="9.5" y="15" width="5" height="4" rx="1" />
+      <rect x="18" y="15" width="5" height="4" rx="1" />
+      <path d="M12 6v3M12 9H3.5M12 9h9M3.5 12v3M12 12v3M20.5 12v3" />
+    </svg>
+  )
+}
+
+function LayoutTreeLrIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="1" y="9" width="5" height="4" rx="1" />
+      <rect x="14" y="3" width="5" height="4" rx="1" />
+      <rect x="14" y="10" width="5" height="4" rx="1" />
+      <rect x="14" y="17" width="5" height="4" rx="1" />
+      <path d="M6 11h3M9 11V5M9 11v6M9 5h5M9 17h5" />
+    </svg>
+  )
+}
+
+function LayoutCircularIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="3" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="20.2" cy="7.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="20.2" cy="16.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="21" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="3.8" cy="16.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="3.8" cy="7.5" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 function Trash2Icon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -415,7 +453,7 @@ export default function InvestigationPage({
   function handleAnchorNode(id: string) { setAnchoredNodeId(id) }
   function handleUnanchorNode() { setAnchoredNodeId(null) }
 
-  function handleLayoutChange(layout: "force" | "radial") {
+  function handleLayoutChange(layout: GraphLayout) {
     setGraphLayout(layout)
     setActiveConfigId(null)
   }
@@ -781,6 +819,45 @@ export default function InvestigationPage({
           >
             <LayoutHierarchicalIcon />
             Radial
+          </button>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+          <button
+            onClick={() => handleLayoutChange("tree-td")}
+            title="Tree top-down layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "tree-td"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutTreeTdIcon />
+            Tree ↓
+          </button>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+          <button
+            onClick={() => handleLayoutChange("tree-lr")}
+            title="Tree left-right layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "tree-lr"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutTreeLrIcon />
+            Tree →
+          </button>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700" />
+          <button
+            onClick={() => handleLayoutChange("circular")}
+            title="Circular layout"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              graphLayout === "circular"
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <LayoutCircularIcon />
+            Circular
           </button>
         </div>
       </div>
